@@ -5,7 +5,7 @@ _base_ = ['./bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d.
 # 这样能将点云的体素数量缩减近4倍，大幅降低 3D 卷积的内存带宽消耗
 voxel_size = [0.15, 0.15, 0.2]
 point_cloud_range = [-54.0, -54.0, -5.0, 54.0, 54.0, 3.0]
-
+grid_size = [720, 720, 40]
 # 对应的 BEV 特征图尺寸会减小，提升融合后的 2D CNN 处理速度
 sparse_shape = [41, 720, 720]  # 原本是 [41, 1440, 1440]
 
@@ -44,8 +44,8 @@ model = dict(
         depth=18,                  # 指定 ResNet-18
         num_stages=4,
         out_indices=(1, 2, 3),     # 输出最后三层的特征
-        frozen_stages=1,
-        norm_cfg=dict(type='BN', requires_grad=False), # 冻结 BN，边缘部署常见操作
+        frozen_stages=-1,      # 1, 冻结（Freeze）ResNet 的 Stem（初始卷积层）和 Stage 1（第一个残差Block）的权重，在反向传播时不更新它们的梯度。
+        norm_cfg=dict(type='BN', requires_grad=True), # 冻结 BN 更新 Gamma/Beta 权重，而且停止计算当前 Batch 的均值和方差，直接使用预训练时的全局统计量。
         norm_eval=True,
         style='pytorch',
         init_cfg=dict(type='Pretrained', checkpoint='torchvision://resnet18')
@@ -109,5 +109,57 @@ model = dict(
         loss_cls=dict(type='mmdet.GaussianFocalLoss', reduction='mean'),
         loss_bbox=dict(type='mmdet.L1Loss', reduction='mean', loss_weight=0.25),
         norm_bbox=True
-    )
+    ),
+
+    # 6. 【预判修复点】为 CenterHead 提供正确的训练与推理配置，避免 Loss 计算维度崩溃
+    train_cfg=dict(
+        pts=dict(
+            grid_size=grid_size,
+            voxel_size=voxel_size,
+            out_size_factor=8,
+            point_cloud_range=point_cloud_range,
+            dense_reg=1,
+            gaussian_overlap=0.1,
+            max_objs=500,
+            min_radius=2,
+            code_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.2, 0.2])),
+            
+    test_cfg=dict(
+        pts=dict(
+            pc_range=point_cloud_range[:2],
+            post_center_limit_range=[-61.2, -61.2, -10.0, 61.2, 61.2, 10.0],
+            max_per_img=500,
+            max_pool_nms=False,
+            min_radius=[4, 12, 10, 1, 0.85, 0.175],
+            score_threshold=0.1,
+            out_size_factor=8,
+            voxel_size=voxel_size[:2],
+            nms_type='rotate',
+            pre_max_size=1000,
+            post_max_size=83,
+            nms_thr=0.2))
 )
+
+# ---------------------------------------------------------
+# 数据加载器 (DataLoader) 配置：榨干轻量化后的显存红利
+# ---------------------------------------------------------
+# 假设你的 Ubuntu 22.04 训练主机使用的是 24G 显存的显卡 (如 RTX 3090/4090)
+# 由于我们将 Swin-T 换成了 ResNet-18，并将 Voxel Size 增大了一倍，
+# 显存占用大幅下降，此时可以大胆拉高 batch_size。
+
+train_dataloader = dict(
+    batch_size=4,  # 【关键修改】从默认的 4 提升到 8，如果显存依然有余量，可以尝试 12 或 16
+    num_workers=4, # 对应提升 worker 数量以保证数据读取速度跟上 GPU 训练速度
+)
+
+# 验证集通常不需要计算梯度，显存占用更小，也可以适当调高加快评估速度
+val_dataloader = dict(
+    batch_size=4,
+    num_workers=4
+)
+
+test_dataloader = dict(
+    batch_size=4,
+    num_workers=4
+)
+
