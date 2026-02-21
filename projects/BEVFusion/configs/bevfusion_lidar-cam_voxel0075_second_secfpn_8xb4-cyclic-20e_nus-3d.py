@@ -220,7 +220,7 @@ test_cfg = dict()
 
 optim_wrapper = dict(
     type='OptimWrapper',
-    optimizer=dict(type='AdamW', lr=0.0002, weight_decay=0.01),
+    optimizer=dict(type='AdamW', lr=2.5e-5, weight_decay=0.01),
     clip_grad=dict(max_norm=35, norm_type=2))
 
 # Default setting for scaling LR automatically
@@ -233,3 +233,6 @@ default_hooks = dict(
     logger=dict(type='LoggerHook', interval=50),
     checkpoint=dict(type='CheckpointHook', interval=1))
 del _base_.custom_hooks
+
+load_from = 'data/bevfusion_merged_init_v4.pth'
+

@@ -267,7 +267,7 @@ test_pipeline = [
 ]
 
 train_dataloader = dict(
-    batch_size=4,
+    batch_size=1,
     num_workers=4,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
@@ -318,7 +318,7 @@ visualizer = dict(
     type='Det3DLocalVisualizer', vis_backends=vis_backends, name='visualizer')
 
 # learning rate
-lr = 0.0001
+lr = 2.5e-5 
 param_scheduler = [
     # learning rate scheduler
     # During the first 8 epochs, learning rate increases from 0 to lr * 10
@@ -382,3 +382,6 @@ default_hooks = dict(
     logger=dict(type='LoggerHook', interval=50),
     checkpoint=dict(type='CheckpointHook', interval=5))
 custom_hooks = [dict(type='DisableObjectSampleHook', disable_after_epoch=15)]
+
+load_from = 'data/bevfusion_fixed.pth'
+
