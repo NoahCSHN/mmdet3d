@@ -14,29 +14,13 @@ model = dict(
     data_preprocessor=dict(
         voxelize_cfg=dict(
             voxel_size=voxel_size,
+            point_cloud_range = point_cloud_range, 
             max_num_points=10,
             max_voxels=[60000, 90000] # 因为 voxel 变大，最大 voxel 数量也可以下调以节省显存
         )
     ),
 
     # 3. 图像骨干网络轻量化 (Swin-T 替换为 MobileNetV3)
-    # img_backbone=dict(
-    #     _delete_=True, # 删除原本的 SwinTransformer
-    #     type='mmcls.MobileNetV3',
-    #     arch='small',
-    #     out_indices=(3, ), # 提取单层特征，避免多尺度带来的额外开销
-    #     init_cfg=dict(
-    #         type='Pretrained', 
-    #         checkpoint='open-mmlab://mmcls/mobilenet_v3_small'
-    #     )
-    # ),
-    # img_neck=dict(
-    #     _delete_=True,
-    #     type='FPN',
-    #     in_channels=[96],  # MobileNetV3 small stage 3 的通道数
-    #     out_channels=256,
-    #     num_outs=1
-    # ),
     # ResNet-18
     img_backbone=dict(
         _delete_=True,
@@ -44,8 +28,8 @@ model = dict(
         depth=18,                  # 指定 ResNet-18
         num_stages=4,
         out_indices=(1, 2, 3),     # 输出最后三层的特征
-        frozen_stages=-1,      # 1, 冻结（Freeze）ResNet 的 Stem（初始卷积层）和 Stage 1（第一个残差Block）的权重，在反向传播时不更新它们的梯度。
-        norm_cfg=dict(type='BN', requires_grad=True), # 冻结 BN 更新 Gamma/Beta 权重，而且停止计算当前 Batch 的均值和方差，直接使用预训练时的全局统计量。
+        frozen_stages=1,      # 1, 冻结（Freeze）ResNet 的 Stem（初始卷积层）和 Stage 1（第一个残差Block）的权重，在反向传播时不更新它们的梯度。
+        norm_cfg=dict(type='BN', requires_grad=False), # 冻结 BN 更新 Gamma/Beta 权重，而且停止计算当前 Batch 的均值和方差，直接使用预训练时的全局统计量。
         norm_eval=True,
         style='pytorch',
         init_cfg=dict(type='Pretrained', checkpoint='torchvision://resnet18')
@@ -62,22 +46,36 @@ model = dict(
     ),
     
     # 4. 优化 LSS 视图转换模块
+    # 视图转换：解决 180 的问题
+    # 如果 top-level 的 voxel_size 没生效，我们在这里硬编码
     img_view_transformer=dict(
-        type='DepthLSSTransform',
+        _delete_=True,
+        type='LSSViewTransformer',
+        grid_config=dict(
+            xbound=[-54.0, 54.0, 0.15], # 显式步长 0.15
+            ybound=[-54.0, 54.0, 0.15],
+            zbound=[-10.0, 10.0, 20.0],
+            dbound=[1.0, 60.0, 0.5]),
+        input_size=[256, 704],
         in_channels=256,
         out_channels=80,
-        image_size=[256, 704],     # 可考虑进一步降分辨率到 [128, 352]
-        feature_size=[8, 22],      # 对应图像输入降采样后的特征图尺寸
-        x_bound=[-54.0, 54.0, 0.6],# BEV Grid 步长增大
-        y_bound=[-54.0, 54.0, 0.6],
-        z_bound=[-5.0, 3.0, 8.0],
-        d_bound=[1.0, 60.0, 1.0],  # 关键：将深度切片的步长从 0.5 改为 1.0，深度预测计算量减半
-        downsample=2
+        # 这里设置为 8。如果还是 180，请尝试设置为 16 (取决于你 Neck 的 stride)
+        downsample=8
+    ),
+
+    pts_backbone=dict(
+        in_channels=128*5,
     ),
 
     # 调整 LiDAR 稀疏编码器的形状以匹配新的 voxel_size
     pts_middle_encoder=dict(
-        sparse_shape=sparse_shape
+        _delete_=True, # 强烈建议加上这个，防止旧参数干扰
+        type='BEVFusionSparseEncoder',
+        in_channels=5,
+        sparse_shape=sparse_shape, # 必须匹配你的新 voxel_size 定义
+        order=('conv', 'norm', 'act'),
+        norm_cfg=dict(type='BN1d', eps=0.001, momentum=0.01),
+        base_channels=16
     ),
 
     # 5. 替换 Transformer 检测头为高效的 2D CNN CenterPoint Head
