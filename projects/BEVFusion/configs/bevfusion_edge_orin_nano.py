@@ -7,21 +7,39 @@ voxel_size = [0.15, 0.15, 0.2]
 point_cloud_range = [-54.0, -54.0, -5.0, 54.0, 54.0, 3.0]
 grid_size = [720, 720, 40]
 # 对应的 BEV 特征图尺寸会减小，提升融合后的 2D CNN 处理速度
-sparse_shape = [41, 720, 720]  # 原本是 [41, 1440, 1440]
+sparse_shape = [720, 720, 41]  # 原本是 [41, 1440, 1440]
 
 model = dict(
     # 修改点云预处理器中的 Voxel 大小
     data_preprocessor=dict(
-        voxelize_cfg=dict(
-            voxel_size=voxel_size,
-            point_cloud_range = point_cloud_range, 
+        _delete_=True,
+        type='Det3DDataPreprocessor',
+        pad_size_divisor=32,
+        mean=[123.675, 116.28, 103.53],
+        std=[58.395, 57.12, 57.375],
+        bgr_to_rgb=False,
+        voxel=True,
+        voxel_layer=dict(
             max_num_points=10,
-            max_voxels=[60000, 90000] # 因为 voxel 变大，最大 voxel 数量也可以下调以节省显存
+            point_cloud_range=point_cloud_range,
+            voxel_size=voxel_size,
+            max_voxels=[90000, 120000]
+        ),
+        # 核心修复点：显式提供 voxelize_cfg
+        voxelize_cfg=dict(
+            max_num_points=10,
+            point_cloud_range=point_cloud_range,
+            voxel_size=voxel_size,
+            max_voxels=[90000, 120000],
+            voxelize_reduce=True
         )
     ),
 
-    # 3. 图像骨干网络轻量化 (Swin-T 替换为 MobileNetV3)
-    # ResNet-18
+    # 3. 图像骨干网络轻量化 (Swin-T 替换为 ResNet-18)
+    # 在你的配置中，这三个参数构成了一套极其精密的“微调（Fine-tune）组合拳”：
+    # frozen_stages=1：直接把 ResNet-18 的最底层（Stem 和 Stage 1）彻底锁死（包含卷积核和 BN 层的所有参数），因为底层提取的边缘、纹理特征是通用的。
+    # norm_eval=True：对未锁死的 Stage 2, 3, 4，冻结它们的 BN 均值和方差，防止小 Batch Size 带来统计噪声。
+    # requires_grad=True：在未锁死的 Stage 2, 3, 4 中，允许 BN 层的 $\gamma$ 和 $\beta$ 随着卷积核一起更新，让高层语义特征能够完美适配当前的 3D 检测任务。
     img_backbone=dict(
         _delete_=True,
         type='mmdet.ResNet',
@@ -29,7 +47,7 @@ model = dict(
         num_stages=4,
         out_indices=(1, 2, 3),     # 输出最后三层的特征
         frozen_stages=1,      # 1, 冻结（Freeze）ResNet 的 Stem（初始卷积层）和 Stage 1（第一个残差Block）的权重，在反向传播时不更新它们的梯度。
-        norm_cfg=dict(type='BN', requires_grad=False), # 冻结 BN 更新 Gamma/Beta 权重，而且停止计算当前 Batch 的均值和方差，直接使用预训练时的全局统计量。
+        norm_cfg=dict(type='BN', requires_grad=True), 
         norm_eval=True,
         style='pytorch',
         init_cfg=dict(type='Pretrained', checkpoint='torchvision://resnet18')
@@ -48,19 +66,18 @@ model = dict(
     # 4. 优化 LSS 视图转换模块
     # 视图转换：解决 180 的问题
     # 如果 top-level 的 voxel_size 没生效，我们在这里硬编码
-    img_view_transformer=dict(
+    view_transform=dict(
         _delete_=True,
-        type='LSSViewTransformer',
-        grid_config=dict(
-            xbound=[-54.0, 54.0, 0.15], # 显式步长 0.15
-            ybound=[-54.0, 54.0, 0.15],
-            zbound=[-10.0, 10.0, 20.0],
-            dbound=[1.0, 60.0, 0.5]),
-        input_size=[256, 704],
+        type='DepthLSSTransform',
         in_channels=256,
         out_channels=80,
-        # 这里设置为 8。如果还是 180，请尝试设置为 16 (取决于你 Neck 的 stride)
-        downsample=8
+        image_size=[256, 704],
+        feature_size=[32, 88], 
+        xbound=[-54.0, 54.0, 0.15], # 强制步长 0.15
+        ybound=[-54.0, 54.0, 0.15],
+        zbound=[-10.0, 10.0, 20.0],
+        dbound=[1.0, 60.0, 0.5],
+        downsample=8  # 强制下采样8倍，输出必定为 90
     ),
 
     pts_backbone=dict(
@@ -74,6 +91,10 @@ model = dict(
         in_channels=5,
         sparse_shape=sparse_shape, # 必须匹配你的新 voxel_size 定义
         order=('conv', 'norm', 'act'),
+        block_type='basicblock',
+        encoder_channels=((16, 16, 32), (32, 32, 64), (64, 64, 128), (128, 128)),
+        # 解决 89 维度问题的关键：全 1 padding
+        encoder_paddings=((1, 1, 1), (1, 1, 1), (1, 1, 1), (1, 1, 1)),
         norm_cfg=dict(type='BN1d', eps=0.001, momentum=0.01),
         base_channels=16
     ),
