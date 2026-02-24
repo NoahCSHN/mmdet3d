@@ -1,6 +1,54 @@
 # 1. 继承仓库中原有的 BEVFusion (LiDAR+Camera) 配置文件
 _base_ = ['./bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d.py']
 
+# =======================================================
+# 第一部分：运行器级别配置 (Runner-level) —— 必须在最外层！
+# =======================================================
+# 1. 设置训练轮数和验证间隔
+train_cfg = dict(by_epoch=True, max_epochs=60, val_interval=10)
+
+# 2. 务必同步拉长学习率调度器 (以 60 Epoch 为例)
+param_scheduler = [
+    # 学习率预热与衰减
+    dict(
+        type='CosineAnnealingLR',
+        T_max=24,       # 原本是 8，放大 3 倍
+        eta_min=2.5e-5 * 1e-4,
+        begin=0,
+        end=24,
+        by_epoch=True,
+        convert_to_iter_based=True),
+    dict(
+        type='CosineAnnealingLR',
+        T_max=36,       # 原本是 12，放大 3 倍
+        eta_min=2.5e-5 * 1e-4,
+        begin=24,       # 接力上面的 24
+        end=60,         # 对应 max_epochs
+        by_epoch=True,
+        convert_to_iter_based=True),
+        
+    # 动量 (Momentum) 同步拉长
+    dict(
+        type='CosineAnnealingMomentum',
+        T_max=24,
+        eta_min=0.85 / 0.95,
+        begin=0,
+        end=24,
+        by_epoch=True,
+        convert_to_iter_based=True),
+    dict(
+        type='CosineAnnealingMomentum',
+        T_max=36,
+        eta_min=1,
+        begin=24,
+        end=60,
+        by_epoch=True,
+        convert_to_iter_based=True)
+]
+
+# =======================================================
+# 第二部分：模型级别配置 (Model-level)
+# =======================================================
 # 2. 调整 Voxel Size，从默认的 0.075 增大一倍到 0.15
 # 这样能将点云的体素数量缩减近4倍，大幅降低 3D 卷积的内存带宽消耗
 voxel_size = [0.15, 0.15, 0.2]
@@ -133,9 +181,9 @@ model = dict(
             score_threshold=0.1,
             out_size_factor=8, # 取决于你的网络下采样倍数，通常为8
             voxel_size=voxel_size[:2],
-            #grid_size=sparse_size,
             code_size=9
         ),
+
         separate_head=dict(
             type='SeparateHead', init_bias=-2.19, final_kernel=3
         ),
@@ -195,4 +243,7 @@ test_dataloader = dict(
     batch_size=2,
     num_workers=2
 )
+
+resume = True
+load_from = './data/work_dirs/bevfusion_edge_orin_nano/epoch_1.pth'
 
