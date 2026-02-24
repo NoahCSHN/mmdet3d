@@ -100,10 +100,10 @@ model = dict(
     ),
 
     # 5. 替换 Transformer 检测头为高效的 2D CNN CenterPoint Head
-    pts_bbox_head=dict(
+    bbox_head=dict(
         _delete_=True, # 彻底删除耗时的 TransFusionHead
         type='CenterHead',
-        in_channels=256, # 假设图像特征和LiDAR特征融合后的维度是256
+        in_channels=512, # 假设图像特征和LiDAR特征融合后的维度是256
         tasks=[
             dict(num_class=1, class_names=['car']),
             dict(num_class=2, class_names=['truck', 'construction_vehicle']),
@@ -113,50 +113,57 @@ model = dict(
             dict(num_class=2, class_names=['motorcycle', 'bicycle']),
         ],
         common_heads=dict(
-            reg=(2, 2), height=(1, 2), dim=(3, 2), rot=(2, 2), vel=(2, 2)),
+            reg=(2, 2), height=(1, 2), dim=(3, 2), rot=(2, 2), vel=(2, 2)
+        ),
         share_conv_channel=64,
         bbox_coder=dict(
             type='CenterPointBBoxCoder',
+            pc_range=point_cloud_range[:2],
             post_center_range=[-61.2, -61.2, -10.0, 61.2, 61.2, 10.0],
             max_num=500,
             score_threshold=0.1,
             out_size_factor=8, # 取决于你的网络下采样倍数，通常为8
             voxel_size=voxel_size[:2],
-            code_size=9),
+            #grid_size=sparse_size,
+            code_size=9
+        ),
         separate_head=dict(
-            type='SeparateHead', init_bias=-2.19, final_kernel=3),
+            type='SeparateHead', init_bias=-2.19, final_kernel=3
+        ),
         loss_cls=dict(type='mmdet.GaussianFocalLoss', reduction='mean'),
         loss_bbox=dict(type='mmdet.L1Loss', reduction='mean', loss_weight=0.25),
-        norm_bbox=True
-    ),
+        norm_bbox=True,
 
-    # 6. 【预判修复点】为 CenterHead 提供正确的训练与推理配置，避免 Loss 计算维度崩溃
-    train_cfg=dict(
-        pts=dict(
-            grid_size=grid_size,
-            voxel_size=voxel_size,
-            out_size_factor=8,
-            point_cloud_range=point_cloud_range,
-            dense_reg=1,
-            gaussian_overlap=0.1,
-            max_objs=500,
-            min_radius=2,
-            code_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.2, 0.2])),
-            
-    test_cfg=dict(
-        pts=dict(
-            pc_range=point_cloud_range[:2],
-            post_center_limit_range=[-61.2, -61.2, -10.0, 61.2, 61.2, 10.0],
-            max_per_img=500,
-            max_pool_nms=False,
-            min_radius=[4, 12, 10, 1, 0.85, 0.175],
-            score_threshold=0.1,
-            out_size_factor=8,
-            voxel_size=voxel_size[:2],
-            nms_type='rotate',
-            pre_max_size=1000,
-            post_max_size=83,
-            nms_thr=0.2))
+        # 6. 【预判修复点】为 CenterHead 提供正确的训练与推理配置，避免 Loss 计算维度崩溃
+        train_cfg=dict(
+            pts=dict(
+                grid_size=grid_size,
+                voxel_size=voxel_size,
+                out_size_factor=8,
+                point_cloud_range=point_cloud_range,
+                dense_reg=1,
+                gaussian_overlap=0.1,
+                max_objs=500,
+                min_radius=2,
+                code_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.2, 0.2])
+        ),
+                
+        test_cfg=dict(
+            pts=dict(
+                pc_range=point_cloud_range[:2],
+                post_center_limit_range=[-61.2, -61.2, -10.0, 61.2, 61.2, 10.0],
+                max_per_img=500,
+                max_pool_nms=False,
+                min_radius=[4, 12, 10, 1, 0.85, 0.175],
+                score_threshold=0.1,
+                out_size_factor=8,
+                voxel_size=voxel_size[:2],
+                nms_type='rotate',
+                pre_max_size=1000,
+                post_max_size=83,
+                nms_thr=0.2)
+        )
+    ),
 )
 
 # ---------------------------------------------------------
