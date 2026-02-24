@@ -7,7 +7,7 @@ voxel_size = [0.15, 0.15, 0.2]
 point_cloud_range = [-54.0, -54.0, -5.0, 54.0, 54.0, 3.0]
 grid_size = [720, 720, 40]
 # 对应的 BEV 特征图尺寸会减小，提升融合后的 2D CNN 处理速度
-sparse_shape = [720, 720, 41]  # 原本是 [41, 1440, 1440]
+sparse_shape = [728, 728, 41]  # 原本是 [41, 1440, 1440]
 
 model = dict(
     # 修改点云预处理器中的 Voxel 大小
@@ -23,14 +23,14 @@ model = dict(
             max_num_points=10,
             point_cloud_range=point_cloud_range,
             voxel_size=voxel_size,
-            max_voxels=[90000, 120000]
+            max_voxels=[30000, 40000]
         ),
         # 核心修复点：显式提供 voxelize_cfg
         voxelize_cfg=dict(
             max_num_points=10,
             point_cloud_range=point_cloud_range,
             voxel_size=voxel_size,
-            max_voxels=[90000, 120000],
+            max_voxels=[30000, 40000],
             voxelize_reduce=True
         )
     ),
@@ -80,6 +80,15 @@ model = dict(
         downsample=2  # 强制下采样8倍，输出必定为 90
     ),
 
+    fusion_layer=dict(
+        _delete_=True,
+        type='ConvFuser',
+        # 【修改这里】：Camera(80) + LiDAR(128)，完美接住 208 通道
+        in_channels=[80, 128], 
+        # 输出标准 256 通道给后面的骨干网络
+        out_channels=256
+    ),
+
     pts_backbone=dict(
         in_channels=128*2,
     ),
@@ -94,7 +103,7 @@ model = dict(
         block_type='basicblock',
         encoder_channels=((16, 16, 32), (32, 32, 64), (64, 64, 128), (128, 128)),
         # 解决 89 维度问题的关键：全 1 padding
-        encoder_paddings=((1, 1, 1), (1, 1, 1), (1, 1, 1), (1, 1, 1)),
+        encoder_paddings=((0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0)),
         norm_cfg=dict(type='BN1d', eps=0.001, momentum=0.01),
         base_channels=16
     ),
@@ -172,18 +181,18 @@ model = dict(
 # 显存占用大幅下降，此时可以大胆拉高 batch_size。
 
 train_dataloader = dict(
-    batch_size=4,  # 【关键修改】从默认的 4 提升到 8，如果显存依然有余量，可以尝试 12 或 16
-    num_workers=4, # 对应提升 worker 数量以保证数据读取速度跟上 GPU 训练速度
+    batch_size=2,  # 【关键修改】从默认的 4 提升到 8，如果显存依然有余量，可以尝试 12 或 16
+    num_workers=2, # 对应提升 worker 数量以保证数据读取速度跟上 GPU 训练速度
 )
 
 # 验证集通常不需要计算梯度，显存占用更小，也可以适当调高加快评估速度
 val_dataloader = dict(
-    batch_size=4,
-    num_workers=4
+    batch_size=2,
+    num_workers=2
 )
 
 test_dataloader = dict(
-    batch_size=4,
-    num_workers=4
+    batch_size=2,
+    num_workers=2
 )
 
