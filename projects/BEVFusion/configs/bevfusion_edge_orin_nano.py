@@ -81,7 +81,7 @@ model = dict(
     ),
 
     pts_backbone=dict(
-        in_channels=128*5,
+        in_channels=128*2,
     ),
 
     # 调整 LiDAR 稀疏编码器的形状以匹配新的 voxel_size
