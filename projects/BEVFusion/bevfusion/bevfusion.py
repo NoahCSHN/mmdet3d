@@ -178,6 +178,29 @@ class BEVFusion(Base3DDetector):
 
         # 2. 此时的 feats 已经是升维后的 64 维特征，再送入 PointPillarsScatter
         x = self.pts_middle_encoder(feats, coords, batch_size)
+
+        # =========================================================
+        # 【关键修复】：把 2D Backbone 和 Neck 加回来，下采样到 90x90
+        # =========================================================
+        # 3. 2D Backbone (SECOND 提取多尺度特征)
+        if hasattr(self, 'pts_backbone') and self.pts_backbone is not None:
+            x = self.pts_backbone(x)
+            
+        # 4. 2D Neck (SECONDFPN 特征金字塔融合)
+        if hasattr(self, 'pts_neck') and self.pts_neck is not None:
+            # =========================================================
+            # 【新增的修复逻辑】：如果 Backbone 吐出的特征层数多于 Neck 需要的层数，
+            # 只取最后 N 层 (N = Neck 期望的输入数量)
+            # =========================================================
+            if isinstance(x, (list, tuple)) and len(x) > len(self.pts_neck.in_channels):
+                num_expected = len(self.pts_neck.in_channels)
+                x = x[-num_expected:]  # 切片：只取最后两个，即 256 和 512 通道的特征
+
+            x = self.pts_neck(x)
+            
+        # 确保输出的是单一的张量 (由于 Neck 通常返回 Tuple)
+        if isinstance(x, (list, tuple)):
+            x = x[0]
         return x
 
     @torch.no_grad()
@@ -291,10 +314,10 @@ class BEVFusion(Base3DDetector):
             assert len(features) == 1, features
             x = features[0]
 
-        x = self.pts_backbone(x)
-        x = self.pts_neck(x)
+        #x = self.pts_backbone(x)
+        #x = self.pts_neck(x)
 
-        return x
+        return [x]
 
     def loss(self, batch_inputs_dict: Dict[str, Optional[Tensor]],
              batch_data_samples: List[Det3DDataSample],
