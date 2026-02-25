@@ -19,6 +19,8 @@ from mmdet3d.models.layers import nms_bev
 from mmdet3d.registry import MODELS
 from mmdet3d.structures import xywhr2xyxyr
 
+# 1. 在文件开头（import 区域）添加：
+from mmdet.models.layers import DetrTransformerDecoderLayer
 
 def clip_sigmoid(x, eps=1e-4):
     y = torch.clamp(x.sigmoid_(), min=eps, max=1 - eps)
@@ -132,7 +134,17 @@ class TransFusionHead(nn.Module):
         # transformer decoder layers for object query with LiDAR feature
         self.decoder = nn.ModuleList()
         for i in range(self.num_decoder_layers):
-            self.decoder.append(MODELS.build(decoder_layer))
+            # 在 transfusion_head.py 约 140 行
+            if decoder_layer.get('type') == 'DetrTransformerDecoderLayer':
+                # 按照 inspect 出来的签名，精准构造参数
+                self.decoder.append(DetrTransformerDecoderLayer(
+                    self_attn_cfg=decoder_layer.get('self_attn_cfg'),
+                    cross_attn_cfg=decoder_layer.get('cross_attn_cfg'),
+                    ffn_cfg=decoder_layer.get('ffn_cfg'),
+                    norm_cfg=decoder_layer.get('norm_cfg', dict(type='LN'))
+                ))
+            else:
+                self.decoder.append(MODELS.build(decoder_layer))
 
         # Prediction Head
         self.prediction_heads = nn.ModuleList()
