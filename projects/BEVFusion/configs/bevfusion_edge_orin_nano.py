@@ -24,6 +24,17 @@ point_cloud_range = [-54.0, -54.0, -5.0, 54.0, 54.0, 3.0]
 grid_size = [720, 720, 1]
 
 model = dict(
+    # =========================================================
+    # 【新增这段配置】：覆盖基类，强制开启 Hard Voxelization，输出 3D 张量
+    # =========================================================
+    pts_voxel_layer=dict(
+        max_num_points=32,
+        point_cloud_range=point_cloud_range,
+        voxel_size=voxel_size,
+        max_voxels=(40000, 40000),
+        voxelize_reduce=True
+    ),
+
     # 修改点云预处理器中的 Voxel 大小
     data_preprocessor=dict(
         _delete_=True,
@@ -44,7 +55,6 @@ model = dict(
             point_cloud_range=point_cloud_range,
             voxel_size=voxel_size,
             max_voxels=[40000, 40000], 
-            voxelize_reduce=True
         )
     ),
 
@@ -142,7 +152,7 @@ model = dict(
         _delete_=True,
         type='ConvFuser',
         # 【修改这里】：Camera(80) + LiDAR(128)，完美接住 208 通道
-        in_channels=[80, 128], 
+        in_channels=[80, 256], 
         # 输出标准 256 通道给后面的骨干网络
         out_channels=256
     ),
@@ -151,7 +161,7 @@ model = dict(
     bbox_head=dict(
         _delete_=True, # 彻底删除耗时的 TransFusionHead
         type='CenterHead',
-        in_channels=512, # 假设图像特征和LiDAR特征融合后的维度是256
+        in_channels=256, # 假设图像特征和LiDAR特征融合后的维度是256
         tasks=[
             dict(num_class=1, class_names=['car']),
             dict(num_class=2, class_names=['truck', 'construction_vehicle']),
