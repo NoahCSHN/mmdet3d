@@ -3,7 +3,7 @@ from copy import deepcopy
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-import torch
+import torch, sys
 import torch.distributed as dist
 from mmengine.utils import is_list_of
 from torch import Tensor
@@ -169,6 +169,14 @@ class BEVFusion(Base3DDetector):
             points = [point.float() for point in points]
             feats, coords, sizes = self.voxelize(points)
             batch_size = coords[-1, 0] + 1
+        # ================================================================
+        # 【关键修复：手动调用你的 PillarFeatureNet】
+        # 将 5 维的原始点特征，通过配置好的网络升维到 64 维
+        if hasattr(self, 'pts_voxel_encoder') and self.pts_voxel_encoder is not None:
+            feats = self.pts_voxel_encoder(feats, sizes, coords)
+        # ================================================================
+
+        # 2. 此时的 feats 已经是升维后的 64 维特征，再送入 PointPillarsScatter
         x = self.pts_middle_encoder(feats, coords, batch_size)
         return x
 
@@ -231,7 +239,8 @@ class BEVFusion(Base3DDetector):
         feats = self.extract_feat(batch_inputs_dict, batch_input_metas)
 
         if self.with_bbox_head:
-            outputs = self.bbox_head.predict(feats, batch_input_metas)
+            #outputs = self.bbox_head.predict(feats, batch_input_metas)
+            outputs = self.bbox_head.predict(feats, batch_data_samples)
 
         res = self.add_pred_to_datasample(batch_data_samples, outputs)
 
@@ -272,6 +281,10 @@ class BEVFusion(Base3DDetector):
         pts_feature = self.extract_pts_feat(batch_inputs_dict)
         features.append(pts_feature)
 
+        # DEBUG: 在 x = self.fusion_layer(features) 之前
+        #for i, feat in enumerate(features):
+        #    print(f"Branch {i} feature shape: {feat.shape}")
+        #sys.stderr.flush()
         if self.fusion_layer is not None:
             x = self.fusion_layer(features)
         else:
