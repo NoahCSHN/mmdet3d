@@ -234,5 +234,5 @@ default_hooks = dict(
     checkpoint=dict(type='CheckpointHook', interval=1))
 del _base_.custom_hooks
 
-load_from = 'data/bevfusion_merged_init_v4.pth'
+#load_from = 'data/bevfusion_merged_init_v4.pth'
 
