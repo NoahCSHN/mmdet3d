@@ -308,14 +308,15 @@ class BEVFusion(Base3DDetector):
         #for i, feat in enumerate(features):
         #    print(f"Branch {i} feature shape: {feat.shape}")
         #sys.stderr.flush()
-        if self.fusion_layer is not None:
-            x = self.fusion_layer(features)
-        else:
-            assert len(features) == 1, features
-            x = features[0]
+        #if self.fusion_layer is not None:
+        #    x = self.fusion_layer(features)
+        #else:
+        #    assert len(features) == 1, features
+        #    x = features[0]
 
         #x = self.pts_backbone(x)
         #x = self.pts_neck(x)
+        x = pts_feature
 
         return [x]
 
