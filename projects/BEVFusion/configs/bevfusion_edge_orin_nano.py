@@ -7,6 +7,13 @@ _base_ = ['./bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d.
 # 恢复标准 20 轮训练，每 5 轮（或 2 轮）验证一次
 train_cfg = dict(by_epoch=True, max_epochs=20, val_interval=5)
 
+# 【新增这里】：强制开启梯度裁剪，保护 Backbone 不被大梯度摧毁！
+optim_wrapper = dict(
+    type='OptimWrapper',
+    optimizer=dict(type='AdamW', lr=2e-4, weight_decay=0.01),
+    clip_grad=dict(max_norm=35, norm_type=2) # 遇到大于35的梯度海啸，强行按在35！
+)
+
 param_scheduler = [
     dict(type='CosineAnnealingLR', T_max=8, eta_min=2.5e-5 * 10, begin=0, end=8, by_epoch=True, convert_to_iter_based=True),
     dict(type='CosineAnnealingLR', T_max=12, eta_min=2.5e-5 * 1e-4, begin=8, end=20, by_epoch=True, convert_to_iter_based=True),
@@ -19,11 +26,12 @@ param_scheduler = [
 # =======================================================
 # 2. 调整 Voxel Size，从默认的 0.075 增大一倍到 0.15
 # 这样能将点云的体素数量缩减近4倍，大幅降低 3D 卷积的内存带宽消耗
-voxel_size = [0.15, 0.15, 8]
+voxel_size = [0.2, 0.2, 8]
 point_cloud_range = [-54.0, -54.0, -5.0, 54.0, 54.0, 3.0]
 grid_size = [720, 720, 1]
 
 model = dict(
+    type='BEVFusion',
     # =========================================================
     # 【新增这段配置】：覆盖基类，强制开启 Hard Voxelization，输出 3D 张量
     # =========================================================
@@ -152,7 +160,8 @@ model = dict(
         _delete_=True,
         type='ConvFuser',
         # 【修改这里】：Camera(80) + LiDAR(128)，完美接住 208 通道
-        in_channels=[80, 256], 
+        #in_channels=[80, 256], 
+        in_channels=[256], 
         # 输出标准 256 通道给后面的骨干网络
         out_channels=256
     ),
@@ -244,4 +253,4 @@ test_dataloader = dict(batch_size=8, num_workers=8)
 # 我们要从头开始享受完美的 20 轮收敛，不需要加载之前在 Nano 上挣扎的半成品权重。
 # resume = True
 # load_from = './data/work_dirs/bevfusion_edge_orin_nano/epoch_1.pth'
-
+load_from = './data/centerpoint_02pillar_second_secfpn_circlenms_4x8_cyclic_20e_nus_20220811_031844-191a3822.pth'
