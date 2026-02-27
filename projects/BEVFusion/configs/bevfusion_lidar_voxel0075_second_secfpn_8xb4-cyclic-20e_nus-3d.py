@@ -383,5 +383,5 @@ default_hooks = dict(
     checkpoint=dict(type='CheckpointHook', interval=5))
 custom_hooks = [dict(type='DisableObjectSampleHook', disable_after_epoch=15)]
 
-#load_from = 'data/bevfusion_fixed.pth'
+load_from = 'data/bevfusion_fixed.pth'
 

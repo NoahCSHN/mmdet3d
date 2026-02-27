@@ -8,8 +8,12 @@ from mmengine.dataset import pseudo_collate
 from mmdet3d.apis import init_model
 
 # ================= 配置区 =================
+#config_file = 'projects/BEVFusion/configs/bevfusion_lidar_only_lightly.py'
+#checkpoint_file = 'data/work_dirs/bevfusion_lidar_only_lightly/epoch_20.pth'
 config_file = 'projects/BEVFusion/configs/bevfusion_lidar_only_lightly.py'
-checkpoint_file = 'data/work_dirs/bevfusion_lidar_only_lightly/epoch_20.pth'
+checkpoint_file = 'data/work_dirs/bevfusion_lidar_only_lightly_pretrained/epoch_5.pth'
+#config_file = 'projects/BEVFusion/configs/bevfusion_lidar_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d.py'
+#checkpoint_file = 'data/work_dirs/bevfusion_lidar_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d_pretrained/epoch_5.pth'
 score_thr = 0.3   # 置信度阈值：只画出大于 0.3 的框
 vis_range = 15.0  # 可视化范围：完美匹配你刚刚修改的 ±15m
 # ==========================================
@@ -85,7 +89,7 @@ for i in range(10):
     plt.axis('off') # 关掉多余的坐标轴，让画面更干净
 
     # 保存这件艺术品！
-    plt.savefig(f'data/work_dirs/bevfusion_lidar_only_lightly/vis_results/bev_sample_{i+1}.png', dpi=300, bbox_inches='tight', pad_inches=0)
+    plt.savefig(f'data/work_dirs/bevfusion_lidar_only_lightly_pretrained/vis_result/bev_sample_{i+1}.png', dpi=300, bbox_inches='tight', pad_inches=0)
     plt.close()
 
 print("可视化大功告成！快去查看 ./vis_results 文件夹吧！")
