@@ -7,10 +7,10 @@ custom_imports = dict(
 # Usually voxel size is changed consistently with the point cloud range
 # If point cloud range is modified, do remember to change all related
 # keys in the config.
-voxel_size = [0.075, 0.075, 8]
-point_cloud_range = [-15.0, -15.0, -5.0, 15.0, 15.0, 3.0]
-sparse_shape = [400, 400, 1]
-grid_size = [400, 400, 1]
+voxel_size = [0.2, 0.2, 8]
+point_cloud_range = [-15.2, -15.2, -5.0, 15.2, 15.2, 3.0]
+sparse_shape = [152, 152, 1]
+grid_size = [152, 152, 1]
 class_names = [
     'car', 'truck', 'construction_vehicle', 'bus', 'trailer', 'barrier',
     'motorcycle', 'bicycle', 'pedestrian', 'traffic_cone'
@@ -67,7 +67,7 @@ model = dict(
     pts_middle_encoder=dict(
         type='PointPillarsScatter',
         in_channels=64,
-        output_shape=[400,400]),
+        output_shape=grid_size[:2]),
     pts_backbone=dict(
         type='SECOND',
         in_channels=64,
@@ -102,6 +102,8 @@ model = dict(
             grid_size=grid_size,
             voxel_size=voxel_size,
             out_size_factor=4,
+            dense_reg=1,
+            max_objs=500,
             gaussian_overlap=0.1,
             min_radius=2,
             pos_weight=-1,
@@ -112,9 +114,16 @@ model = dict(
             out_size_factor=4,
             voxel_size=voxel_size[:2],
             pc_range=point_cloud_range[:2],
-            nms_type=None),
+            nms_type='rotate',
+            score_threshold=0.0,
+            pre_max_size=100,
+            nms_thr=0.2,
+            min_radius=[4, 12, 10, 1, 0.85, 0.175],
+            post_max_size=83,
+            post_center_limit_range=[-20.0, -20.0, -10.0, 20.0, 20.0, 10.0],
+            ),
         common_heads=dict(
-            center=[2, 2], height=[1, 2], dim=[3, 2], rot=[2, 2], vel=[2, 2]),
+            reg=[2, 2], height=[1, 2], dim=[3, 2], rot=[2, 2], vel=[2, 2]),
         bbox_coder=dict(
             type='CenterPointBBoxCoder',
             pc_range=point_cloud_range[:2],
@@ -367,6 +376,8 @@ default_hooks = dict(
 custom_hooks = [dict(type='DisableObjectSampleHook', disable_after_epoch=15)]
 
 #load_from = 'data/bevfusion_fixed.pth'
-
-load_from = './data/centerpoint_02pillar_second_secfpn_circlenms_4x8_cyclic_20e_nus_20220811_031844-191a3822.pth'
+#load_from = './data/centerpoint_02pillar_second_secfpn_circlenms_4x8_cyclic_20e_nus_20220811_031844-191a3822.pth'
+#resume = True
+load_from = './data/centerpoint_02pillar_renamed_for_bevfusion.pth'
+#load_from = './data/work_dirs/bevfusion_lidar_only_lightly_pointpillars/epoch_10.pth'
 

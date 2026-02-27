@@ -262,8 +262,8 @@ class BEVFusion(Base3DDetector):
         feats = self.extract_feat(batch_inputs_dict, batch_input_metas)
 
         if self.with_bbox_head:
-            outputs = self.bbox_head.predict(feats, batch_input_metas)
-            #outputs = self.bbox_head.predict(feats, batch_data_samples)
+            #outputs = self.bbox_head.predict(feats, batch_input_metas)
+            outputs = self.bbox_head.predict(feats, batch_data_samples)
 
         res = self.add_pred_to_datasample(batch_data_samples, outputs)
 

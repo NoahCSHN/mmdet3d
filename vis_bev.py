@@ -10,12 +10,16 @@ from mmdet3d.apis import init_model
 # ================= 配置区 =================
 #config_file = 'projects/BEVFusion/configs/bevfusion_lidar_only_lightly.py'
 #checkpoint_file = 'data/work_dirs/bevfusion_lidar_only_lightly/epoch_20.pth'
-config_file = 'projects/BEVFusion/configs/bevfusion_lidar_only_lightly.py'
-checkpoint_file = 'data/work_dirs/bevfusion_lidar_only_lightly_pretrained/epoch_5.pth'
+#config_file = 'projects/BEVFusion/configs/bevfusion_lidar_only_lightly.py'
+#checkpoint_file = 'data/work_dirs/bevfusion_lidar_only_lightly_pretrained/epoch_5.pth'
 #config_file = 'projects/BEVFusion/configs/bevfusion_lidar_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d.py'
 #checkpoint_file = 'data/work_dirs/bevfusion_lidar_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d_pretrained/epoch_5.pth'
+root_dir = 'data/work_dirs/bevfusion_lidar_only_lightly_pointpillars'
+vis_dir = os.path.join(root_dir, 'vis_results')
+config_file = 'projects/BEVFusion/configs/bevfusion_lidar_only_lightly.py'
+checkpoint_file = './data/centerpoint_02pillar_renamed_for_bevfusion.pth' #os.path.join(root_dir, 'epoch_15.pth')
 score_thr = 0.3   # 置信度阈值：只画出大于 0.3 的框
-vis_range = 15.0  # 可视化范围：完美匹配你刚刚修改的 ±15m
+vis_range = 15.2  # 可视化范围：完美匹配你刚刚修改的 ±15m
 # ==========================================
 
 print("1. 正在加载模型与配置...")
@@ -24,7 +28,7 @@ cfg = Config.fromfile(config_file)
 
 print("2. 正在准备验证集数据...")
 dataset = DATASETS.build(cfg.val_dataloader.dataset)
-#os.makedirs('./vis_results', exist_ok=True)
+os.makedirs(vis_dir, exist_ok=True)
 
 print("3. 开始推理并生成 BEV 俯视图...")
 # 我们直接提取前 10 个验证场景进行画图
@@ -89,7 +93,8 @@ for i in range(10):
     plt.axis('off') # 关掉多余的坐标轴，让画面更干净
 
     # 保存这件艺术品！
-    plt.savefig(f'data/work_dirs/bevfusion_lidar_only_lightly_pretrained/vis_result/bev_sample_{i+1}.png', dpi=300, bbox_inches='tight', pad_inches=0)
+    plt.savefig(os.path.join(vis_dir, f'bev_sample_{i+1}.png'), dpi=300, bbox_inches='tight', pad_inches=0)
+    
     plt.close()
 
 print("可视化大功告成！快去查看 ./vis_results 文件夹吧！")
