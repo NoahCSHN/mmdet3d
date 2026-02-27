@@ -18,6 +18,37 @@ class BEVFusionPointPillarsScatter(PointPillarsScatter):
         coors_fixed[:, 3] = coors[:, 1]
         return super().forward(voxel_features, coors_fixed, batch_size, **kwargs)
 
+from mmdet3d.models.task_modules.coders import CenterPointBBoxCoder
+from mmdet3d.registry import TASK_UTILS
+import torch
+
+@TASK_UTILS.register_module(force=True)
+class BEVFusionAbsoluteBBoxCoder(CenterPointBBoxCoder):
+    """
+    专门修复 BEVFusion 预训练权重直接输出绝对尺寸，
+    并完美处理空间维度 [X,Y] 到 [Y,X] 翻转的解码器。
+    """
+    def decode(self, *args, **kwargs):
+        # 1. 自动识别并交换张量的最后两维 (Y 和 X)
+        def swap_yx(obj):
+            if isinstance(obj, torch.Tensor):
+                return obj.transpose(-2, -1).contiguous()
+            elif isinstance(obj, list):
+                return [swap_yx(item) for item in obj]
+            return obj
+
+        new_kwargs = {k: swap_yx(v) for k, v in kwargs.items()}
+        new_args = [swap_yx(a) for a in args]
+
+        # 2. 调用原生解码 (它现在拿到的是完美的 [Y, X] 数据)
+        results = super().decode(*new_args, **new_kwargs)
+        
+        # 3. 修复绝对尺寸被误加 exp() 的问题
+        for res in results:
+            if res['bboxes'].shape[0] > 0:
+                res['bboxes'][:, 3:6] = torch.log(res['bboxes'][:, 3:6])
+        return results
+
 # model settings
 # Voxel size for voxel encoder
 # Usually voxel size is changed consistently with the point cloud range
@@ -141,7 +172,7 @@ model = dict(
         common_heads=dict(
             reg=[2, 2], height=[1, 2], dim=[3, 2], rot=[2, 2], vel=[2, 2]),
         bbox_coder=dict(
-            type='CenterPointBBoxCoder',
+            type='BEVFusionAbsoluteBBoxCoder',
             pc_range=point_cloud_range[:2],
             max_num=500,
             post_center_range=[-60.0, -60.0, -10.0, 60.0, 60.0, 10.0],
