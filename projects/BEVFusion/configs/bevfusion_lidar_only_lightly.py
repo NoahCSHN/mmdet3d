@@ -2,6 +2,22 @@ _base_ = ['../../../configs/_base_/default_runtime.py']
 custom_imports = dict(
     imports=['projects.BEVFusion.bevfusion'], allow_failed_imports=False)
 
+from mmdet3d.models.middle_encoders import PointPillarsScatter
+from mmdet3d.registry import MODELS
+
+@MODELS.register_module(force=True)
+class BEVFusionPointPillarsScatter(PointPillarsScatter):
+    """
+    专门解决 BEVFusion 预处理器输出 [b, x, y, z] 
+    与标准 PointPillarsScatter 期望 [b, z, y, x] 不匹配的拦截器
+    """
+    def forward(self, voxel_features, coors, batch_size=None, **kwargs):
+        coors_fixed = coors.clone()
+        # 翻转第 1 列 (Z) 和第 3 列 (X)
+        coors_fixed[:, 1] = coors[:, 3]
+        coors_fixed[:, 3] = coors[:, 1]
+        return super().forward(voxel_features, coors_fixed, batch_size, **kwargs)
+
 # model settings
 # Voxel size for voxel encoder
 # Usually voxel size is changed consistently with the point cloud range
@@ -65,9 +81,9 @@ model = dict(
         legacy=False
         ),
     pts_middle_encoder=dict(
-        type='PointPillarsScatter',
+        type='BEVFusionPointPillarsScatter',
         in_channels=64,
-        output_shape=grid_size[:2]),
+        output_shape=(512, 512)),
     pts_backbone=dict(
         type='SECOND',
         in_channels=64,
@@ -378,6 +394,6 @@ custom_hooks = [dict(type='DisableObjectSampleHook', disable_after_epoch=15)]
 #load_from = 'data/bevfusion_fixed.pth'
 #load_from = './data/centerpoint_02pillar_second_secfpn_circlenms_4x8_cyclic_20e_nus_20220811_031844-191a3822.pth'
 #resume = True
-load_from = './data/centerpoint_02pillar_renamed_for_bevfusion.pth'
+#load_from = './data/centerpoint_02pillar_renamed_for_bevfusion.pth'
 #load_from = './data/work_dirs/bevfusion_lidar_only_lightly_pointpillars/epoch_10.pth'
 
