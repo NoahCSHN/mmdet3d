@@ -8,9 +8,9 @@ custom_imports = dict(
 # If point cloud range is modified, do remember to change all related
 # keys in the config.
 voxel_size = [0.2, 0.2, 8]
-point_cloud_range = [-15.2, -15.2, -5.0, 15.2, 15.2, 3.0]
-sparse_shape = [152, 152, 1]
-grid_size = [152, 152, 1]
+point_cloud_range = [-51.2, -51.2, -5.0, 51.2, 51.2, 3.0]
+sparse_shape = [512, 512, 1]
+grid_size = [512, 512, 1]
 class_names = [
     'car', 'truck', 'construction_vehicle', 'bus', 'trailer', 'barrier',
     'motorcycle', 'bicycle', 'pedestrian', 'traffic_cone'
@@ -120,7 +120,7 @@ model = dict(
             nms_thr=0.2,
             min_radius=[4, 12, 10, 1, 0.85, 0.175],
             post_max_size=83,
-            post_center_limit_range=[-20.0, -20.0, -10.0, 20.0, 20.0, 10.0],
+            post_center_limit_range=[-60.0, -60.0, -10.0, 60.0, 60.0, 10.0],
             ),
         common_heads=dict(
             reg=[2, 2], height=[1, 2], dim=[3, 2], rot=[2, 2], vel=[2, 2]),
@@ -128,7 +128,7 @@ model = dict(
             type='CenterPointBBoxCoder',
             pc_range=point_cloud_range[:2],
             max_num=500,
-            post_center_range=[-20.0, -20.0, -10.0, 20.0, 20.0, 10.0],
+            post_center_range=[-60.0, -60.0, -10.0, 60.0, 60.0, 10.0],
             score_threshold=0.0,
             out_size_factor=4,
             voxel_size=voxel_size[:2],

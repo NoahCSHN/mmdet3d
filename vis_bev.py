@@ -18,8 +18,8 @@ root_dir = 'data/work_dirs/bevfusion_lidar_only_lightly_pointpillars'
 vis_dir = os.path.join(root_dir, 'vis_results')
 config_file = 'projects/BEVFusion/configs/bevfusion_lidar_only_lightly.py'
 checkpoint_file = './data/centerpoint_02pillar_renamed_for_bevfusion.pth' #os.path.join(root_dir, 'epoch_15.pth')
-score_thr = 0.3   # 置信度阈值：只画出大于 0.3 的框
-vis_range = 15.2  # 可视化范围：完美匹配你刚刚修改的 ±15m
+score_thr = 0.001   # 置信度阈值：只画出大于 0.3 的框
+vis_range = 51.2  # 可视化范围：完美匹配你刚刚修改的 ±15m
 # ==========================================
 
 print("1. 正在加载模型与配置...")
@@ -51,6 +51,12 @@ for i in range(10):
     pred = result.pred_instances_3d
     bboxes = pred.bboxes_3d.tensor.cpu().numpy()
     scores = pred.scores_3d.cpu().numpy()
+    # --- 调试：打印预测结果的真相 ---
+    print(f"DEBUG: 场景 {i+1} 检测到的目标总数 (未过滤): {len(bboxes)}")
+    if len(scores) > 0:
+        print(f"DEBUG: 最高置信度: {scores.max():.4f}")
+    else:
+        print("DEBUG: 警告！模型在该场景输出为 0 个框")
 
     # --- 4. 使用 Matplotlib 纯手动渲染 2D 俯视图 ---
     plt.figure(figsize=(10, 10), facecolor='black')
