@@ -85,28 +85,17 @@ model = dict(
         upsample_cfg=dict(type='deconv', bias=False),
         use_conv_for_no_stride=True),
     bbox_head=dict(
-        type='TransFusionHead',
-        num_proposals=200,
-        auxiliary=True,
+        type='CenterHead',
         in_channels=384,
-        hidden_channel=128,
-        num_classes=10,
-        nms_kernel_size=3,
-        bn_momentum=0.1,
-        num_decoder_layers=1,
-        decoder_layer=dict(
-            type='TransformerDecoderLayer',
-            self_attn_cfg=dict(embed_dims=128, num_heads=8, dropout=0.1),
-            cross_attn_cfg=dict(embed_dims=128, num_heads=8, dropout=0.1),
-            ffn_cfg=dict(
-                embed_dims=128,
-                feedforward_channels=256,
-                num_fcs=2,
-                ffn_drop=0.1,
-                act_cfg=dict(type='ReLU', inplace=True),
-            ),
-            norm_cfg=dict(type='LN'),
-            pos_encoding_cfg=dict(input_channel=2, num_pos_feats=128)),
+        share_conv_channel=64,
+        tasks=[
+            dict(num_class=1, class_names=['car']),
+            dict(num_class=2, class_names=['truck', 'construction_vehicle']),
+            dict(num_class=2, class_names=['bus', 'trailer']),
+            dict(num_class=1, class_names=['barrier']),
+            dict(num_class=2, class_names=['motorcycle', 'bicycle']),
+            dict(num_class=2, class_names=['pedestrian', 'traffic_cone']),
+        ],
         train_cfg=dict(
             dataset='nuScenes',
             point_cloud_range=point_cloud_range,
@@ -116,17 +105,7 @@ model = dict(
             gaussian_overlap=0.1,
             min_radius=2,
             pos_weight=-1,
-            code_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.2, 0.2],
-            assigner=dict(
-                type='HungarianAssigner3D',
-                iou_calculator=dict(type='BboxOverlaps3D', coordinate='lidar'),
-                cls_cost=dict(
-                    type='mmdet.FocalLossCost',
-                    gamma=2.0,
-                    alpha=0.25,
-                    weight=0.15),
-                reg_cost=dict(type='BBoxBEVL1Cost', weight=0.25),
-                iou_cost=dict(type='IoU3DCost', weight=0.25))),
+            code_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.2, 0.2]),
         test_cfg=dict(
             dataset='nuScenes',
             grid_size=grid_size,
@@ -137,24 +116,23 @@ model = dict(
         common_heads=dict(
             center=[2, 2], height=[1, 2], dim=[3, 2], rot=[2, 2], vel=[2, 2]),
         bbox_coder=dict(
-            type='TransFusionBBoxCoder',
+            type='CenterPointBBoxCoder',
             pc_range=point_cloud_range[:2],
+            max_num=500,
             post_center_range=[-20.0, -20.0, -10.0, 20.0, 20.0, 10.0],
             score_threshold=0.0,
             out_size_factor=4,
             voxel_size=voxel_size[:2],
-            code_size=10),
+            code_size=9),
+        separate_head=dict(
+            type='SeparateHead', init_bias=-2.19, final_kernel=3),
         loss_cls=dict(
-            type='mmdet.FocalLoss',
-            use_sigmoid=True,
-            gamma=2.0,
-            alpha=0.25,
-            reduction='mean',
-            loss_weight=1.0),
-        loss_heatmap=dict(
-            type='mmdet.GaussianFocalLoss', reduction='mean', loss_weight=1.0),
+            type='mmdet.GaussianFocalLoss', reduction='mean'),
         loss_bbox=dict(
-            type='mmdet.L1Loss', reduction='mean', loss_weight=0.25)))
+            type='mmdet.L1Loss', reduction='mean', loss_weight=0.25),
+        norm_bbox=True)
+)
+
 
 db_sampler = dict(
     data_root=data_root,
