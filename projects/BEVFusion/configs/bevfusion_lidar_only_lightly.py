@@ -125,7 +125,7 @@ model = dict(
         common_heads=dict(
             reg=[2, 2], height=[1, 2], dim=[3, 2], rot=[2, 2], vel=[2, 2]),
         bbox_coder=dict(
-            type='BEVFusionAbsoluteBBoxCoder',
+            type='CenterPointBBoxCoder',
             pc_range=point_cloud_range[:2],
             max_num=500,
             post_center_range=[-60.0, -60.0, -10.0, 60.0, 60.0, 10.0],
@@ -310,7 +310,7 @@ visualizer = dict(
     type='Det3DLocalVisualizer', vis_backends=vis_backends, name='visualizer')
 
 # learning rate
-lr = 2.5e-5 
+lr = 1e-3 
 param_scheduler = [
     # learning rate scheduler
     # During the first 8 epochs, learning rate increases from 0 to lr * 10
@@ -361,6 +361,7 @@ test_cfg = dict()
 optim_wrapper = dict(
     type='OptimWrapper',
     optimizer=dict(type='AdamW', lr=lr, weight_decay=0.01),
+    accumulative_counts=8,
     clip_grad=dict(max_norm=35, norm_type=2))
 
 # Default setting for scaling LR automatically
