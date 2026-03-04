@@ -172,8 +172,8 @@ class BEVFusion(Base3DDetector):
         # ================================================================
         # 【关键修复：手动调用你的 PillarFeatureNet】
         # 将 5 维的原始点特征，通过配置好的网络升维到 64 维
-        if hasattr(self, 'pts_voxel_encoder') and self.pts_voxel_encoder is not None:
-            feats = self.pts_voxel_encoder(feats, sizes, coords)
+        #if hasattr(self, 'pts_voxel_encoder') and self.pts_voxel_encoder is not None:
+        #    feats = self.pts_voxel_encoder(feats, sizes, coords)
         # ================================================================
 
         # 2. 此时的 feats 已经是升维后的 64 维特征，再送入 PointPillarsScatter
@@ -262,8 +262,8 @@ class BEVFusion(Base3DDetector):
         feats = self.extract_feat(batch_inputs_dict, batch_input_metas)
 
         if self.with_bbox_head:
-            #outputs = self.bbox_head.predict(feats, batch_input_metas)
-            outputs = self.bbox_head.predict(feats, batch_data_samples)
+            outputs = self.bbox_head.predict(feats, batch_input_metas)
+            #outputs = self.bbox_head.predict(feats, batch_data_samples)
 
         res = self.add_pred_to_datasample(batch_data_samples, outputs)
 
