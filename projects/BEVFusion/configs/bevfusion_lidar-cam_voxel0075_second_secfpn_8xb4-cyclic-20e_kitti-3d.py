@@ -191,10 +191,11 @@ train_pipeline = [
     dict(type='PointsRangeFilter', point_cloud_range=point_cloud_range),
     dict(type='ObjectRangeFilter', point_cloud_range=point_cloud_range),
     dict(type='PointShuffle'),
+    dict(type='EnsureMultiViewMetas'), # <--- 插入在这里！(打包前的最后一道安检)
     dict(
         type='Pack3DDetInputs',
         keys=['points', 'img', 'gt_bboxes_3d', 'gt_labels_3d'],
-        meta_keys=['cam2img', 'lidar2cam', 'img_shape', 'box_type_3d', 'sample_idx', 'lidar_path', 'img_path'])
+        meta_keys=['cam2img', 'lidar2cam', 'img_shape', 'box_type_3d', 'sample_idx', 'lidar_path', 'img_path', 'lidar2img', 'cam2lidar'])
 ]
 
 test_pipeline = [
@@ -210,10 +211,11 @@ test_pipeline = [
         rand_flip=False,
         is_train=False),
     dict(type='PointsRangeFilter', point_cloud_range=point_cloud_range),
+    dict(type='EnsureMultiViewMetas'), # <--- 插入在这里！(打包前的最后一道安检)
     dict(
         type='Pack3DDetInputs',
         keys=['img', 'points'],
-        meta_keys=['cam2img', 'lidar2cam', 'img_shape', 'box_type_3d', 'sample_idx', 'lidar_path', 'img_path'])
+        meta_keys=['cam2img', 'lidar2cam', 'img_shape', 'box_type_3d', 'sample_idx', 'lidar_path', 'img_path', 'lidar2img', 'cam2lidar'])
 ]
 
 # ================= 4. Dataloader 与 训练策略 =================
