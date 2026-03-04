@@ -19,9 +19,15 @@ data_prefix = dict(
 # X: 0 到 74.4 (74.4 / 0.075 = 992)
 # Y: -40.8 到 40.8 (81.6 / 0.075 = 1088)
 # Z: -3.0 到 1.0 (4.0 / 0.2 = 20)
-point_cloud_range = [0.0, -40.8, -3.0, 74.4, 40.8, 1.0]
+#point_cloud_range = [0.0, -40.8, -3.0, 74.4, 40.8, 1.0]
+#voxel_size = [0.075, 0.075, 0.2]
+#grid_size = [992, 1088, 20] 
+# 恢复 360 度全景物理范围，包容你的所有点云
+point_cloud_range = [-54.0, -54.0, -5.0, 54.0, 54.0, 3.0]
 voxel_size = [0.075, 0.075, 0.2]
-grid_size = [992, 1088, 20] 
+
+# 精确重算 Grid Size: (54 - (-54)) / 0.075 = 1440
+grid_size = [1440, 1440, 40]
 
 input_modality = dict(use_lidar=True, use_camera=True)
 backend_args = None
@@ -47,7 +53,7 @@ model = dict(
     pts_middle_encoder=dict(
         type='BEVFusionSparseEncoder',
         in_channels=4,
-        sparse_shape=[1088, 992, 20], # [Y, X, Z] 对应 grid_size
+        sparse_shape=grid_size, # [Y, X, Z] 对应 grid_size
         order=('conv', 'norm', 'act'),
         norm_cfg=dict(type='BN1d', eps=0.001, momentum=0.01),
         encoder_channels=((16, 16, 32), (32, 32, 64), (64, 64, 128), (128, 128)),
@@ -105,15 +111,15 @@ model = dict(
         image_size=[256, 704],
         feature_size=[32, 88],
         # X 轴 248 个 bin，经过 downsample=2 后特征图 X 宽为 124 (与激光雷达 992/8=124 完美对齐)
-        xbound=[0.0, 74.4, 0.3], 
+        xbound=[-54.0, 54.0, 0.3], 
         # Y 轴 272 个 bin，经过 downsample=2 后特征图 Y 宽为 136 (与激光雷达 1088/8=136 完美对齐)
-        ybound=[-40.8, 40.8, 0.3], 
+        ybound=[-54.0, 54.0, 0.3], 
         zbound=[-10.0, 10.0, 20.0],
         dbound=[1.0, 60.0, 0.5],
         downsample=2),
         
     fusion_layer=dict(
-        type='ConvFuser', in_channels=[80, 256], out_channels=256),
+        type='ConvFuser', in_channels=[80, 128], out_channels=256),
 
     # ------ TransFusion 检测头 ------
     bbox_head=dict(
@@ -157,14 +163,14 @@ model = dict(
             grid_size=grid_size,
             out_size_factor=8,
             voxel_size=[0.075, 0.075],
-            pc_range=[0.0, -40.8], # 仅前视
+            pc_range=[-54.0, -54.0], # 仅前视
             nms_type=None),
         common_heads=dict(
             center=[2, 2], height=[1, 2], dim=[3, 2], rot=[2, 2]), # 去掉了 vel=[2, 2]
         bbox_coder=dict(
             type='TransFusionBBoxCoder',
-            pc_range=[0.0, -40.8],
-            post_center_range=[0.0, -40.8, -5.0, 74.4, 40.8, 5.0],
+            pc_range=[-54.0, -54.0],
+            post_center_range=[-61.2, -61.2, -10.0, 61.2, 61.2, 10.0],
             score_threshold=0.0,
             out_size_factor=8,
             voxel_size=[0.075, 0.075],
@@ -195,7 +201,7 @@ train_pipeline = [
     dict(
         type='Pack3DDetInputs',
         keys=['points', 'img', 'gt_bboxes_3d', 'gt_labels_3d'],
-        meta_keys=['cam2img', 'lidar2cam', 'img_shape', 'box_type_3d', 'sample_idx', 'lidar_path', 'img_path', 'lidar2img', 'cam2lidar'])
+        meta_keys=['cam2img', 'lidar2cam', 'img_shape', 'box_type_3d', 'sample_idx', 'lidar_path', 'img_path', 'lidar2img', 'cam2lidar', 'img_aug_matrix'])
 ]
 
 test_pipeline = [
@@ -215,14 +221,14 @@ test_pipeline = [
     dict(
         type='Pack3DDetInputs',
         keys=['img', 'points'],
-        meta_keys=['cam2img', 'lidar2cam', 'img_shape', 'box_type_3d', 'sample_idx', 'lidar_path', 'img_path', 'lidar2img', 'cam2lidar'])
+        meta_keys=['cam2img', 'lidar2cam', 'img_shape', 'box_type_3d', 'sample_idx', 'lidar_path', 'img_path', 'lidar2img', 'cam2lidar', 'img_aug_matrix'])
 ]
 
 # ================= 4. Dataloader 与 训练策略 =================
 train_dataloader = dict(
     batch_size=2, # 多模态显存占用极大，建议调低
-    num_workers=0,
-    persistent_workers=False,
+    num_workers=2,
+    persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     dataset=dict(
         type=dataset_type,
@@ -236,7 +242,7 @@ train_dataloader = dict(
         box_type_3d='LiDAR'))
 
 val_dataloader = dict(
-    batch_size=1, num_workers=0, persistent_workers=False, drop_last=False,
+    batch_size=1, num_workers=2, persistent_workers=True, drop_last=False,
     sampler=dict(type='DefaultSampler', shuffle=False),
     dataset=dict(
         type=dataset_type, data_root=data_root, ann_file='kitti_infos_val.pkl',

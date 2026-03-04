@@ -72,10 +72,11 @@ class EnsureMultiViewMetas:
     """终极防线：无论前面的算子怎么降维，在送入网络前强行包裹为多视角格式"""
     def __call__(self, results):
         import numpy as np
-        for key in ['cam2img', 'lidar2cam', 'lidar2img', 'cam2lidar']:
+        # 【核心修改】：把 img_aug_matrix 也加入强行升维的保护名单！
+        target_keys = ['cam2img', 'lidar2cam', 'lidar2img', 'cam2lidar', 'img_aug_matrix']
+        for key in target_keys:
             if key in results:
                 val = results[key]
-                # 如果它被前面的算子剥成了纯粹的 4x4 Numpy 矩阵，强行套上列表！
                 if isinstance(val, np.ndarray) and val.shape == (4, 4):
                     results[key] = [val]
         return results
