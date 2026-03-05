@@ -5,12 +5,12 @@ custom_imports = dict(
     allow_failed_imports=False)
 
 # ================= 1. 基础物理范围与类别 =================
-class_names = ['Car']
+class_names = ['Distance_Marker', 'Structure']
 metainfo = dict(classes=class_names)
-#dataset_type = 'CustomKittiDataset'
-#data_root = 'data/dataset_v3/'
-dataset_type = 'KittiDataset'
-data_root = 'data/kitti/'
+dataset_type = 'CustomKittiDataset'
+data_root = 'data/3DBox_Annotation_20260305154810/'
+#dataset_type = 'KittiDataset'
+#data_root = 'data/kitti/'
 
 # 【核心修复】：明确指定点云和图像的子目录前缀！
 data_prefix = dict(
@@ -130,7 +130,7 @@ model = dict(
         auxiliary=True,
         in_channels=512, # 保持预训练模型的输入通道数
         hidden_channel=128,
-        num_classes=1,   # 【只预测 MarkBand 1 类】
+        num_classes=2,   # 【只预测 MarkBand 1 类】
         nms_kernel_size=3,
         bn_momentum=0.1,
         num_decoder_layers=1,
@@ -223,7 +223,7 @@ test_pipeline = [
     dict(
         type='Pack3DDetInputs',
         keys=['img', 'points'],
-        meta_keys=['cam2img', 'lidar2cam', 'img_shape', 'box_type_3d', 'sample_idx', 'lidar_path', 'img_path', 'lidar2img', 'cam2lidar', 'img_aug_matrix'])
+        meta_keys=['cam2img', 'lidar2cam', 'img_shape', 'box_type_3d', 'sample_idx', 'lidar_path', 'img_path', 'lidar2img', 'cam2lidar', 'img_aug_matrix', 'num_pts_feats'])
 ]
 
 # ================= 4. Dataloader 与 训练策略 =================
@@ -276,6 +276,19 @@ train_cfg = dict(by_epoch=True, max_epochs=15, val_interval=1)
 val_cfg = dict()
 test_cfg = dict()
 
+# 删掉我们刚才加的 visualization=dict(...)，只保留下面这两行
 default_hooks = dict(
     logger=dict(type='LoggerHook', interval=50),
-    checkpoint=dict(type='CheckpointHook', interval=1))
+    checkpoint=dict(type='CheckpointHook', interval=1)
+)
+
+# 确保这段依然保留在文件底部
+vis_backends = [dict(type='LocalVisBackend')]
+visualizer = dict(
+    type='Det3DLocalVisualizer', 
+    vis_backends=vis_backends, 
+    name='visualizer')
+
+load_from = 'data/work_dirs/bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_kitti-3d_nopretrained/epoch_15.pth'
+
+

@@ -9,23 +9,30 @@ class CustomKittiDataset(KittiDataset):
     """自定义的数据集类，使用自定义的类别"""
     
     METAINFO = {
-        'classes': ('MarkBand', ), # 你的目标类别
-        'palette': [(255, 0, 0)]   
+        'classes': ('Distance_Marker', 'Structure', ), # 你的目标类别
+        'palette': [(0, 0, 255), (0, 255, 0)]   
     }
 
     def parse_data_info(self, info: dict) -> dict:
-        # 【核心魔法】：在底层框架进行"安检"过滤之前，直接在内存里篡改数据！
+        """
+        在底层框架报错之前，强制进行名字纠正。
+        解决 .pkl 中出现的 '0', '1' 或 'Unknown' 导致的 index 错误。
+        """
         if 'instances' in info:
             for inst in info['instances']:
-                # 无论官方底层把它标成了 8 (DontCare) 还是其他数字，强行洗脑为 0
-                inst['bbox_label'] = 0
-                if 'bbox_label_3d' in inst:
-                    inst['bbox_label_3d'] = 0
-                # 强行修正名字，防止因为名字不匹配被抛弃
-                if 'bbox_label_name' in inst:
-                    inst['bbox_label_name'] = 'MarkBand'
-                    
-        # 洗白完成后，再交给官方底层去走标准流程
+                # 获取当前实例的名字或 ID
+                name = str(inst.get('bbox_label_name', ''))
+                label = inst.get('bbox_label', -1)
+
+                # 【核心拦截逻辑】：强制将数字字符串或错误名字映射回 METAINFO 中的名字
+                if name == '0' or label == 0:
+                    inst['bbox_label_name'] = 'Distance_Marker'
+                    inst['bbox_label'] = 0
+                elif name == '1' or label == 1:
+                    inst['bbox_label_name'] = 'Structure'
+                    inst['bbox_label'] = 1
+                # 如果已经是正确的名字，保持不变；如果是 -1 或 DontCare，后面框架会自动处理
+
         return super().parse_data_info(info)
 
 @TRANSFORMS.register_module(force=True)
