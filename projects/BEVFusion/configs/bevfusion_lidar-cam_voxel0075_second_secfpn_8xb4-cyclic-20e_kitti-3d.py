@@ -5,10 +5,12 @@ custom_imports = dict(
     allow_failed_imports=False)
 
 # ================= 1. 基础物理范围与类别 =================
-class_names = ['MarkBand']
+class_names = ['Car']
 metainfo = dict(classes=class_names)
-dataset_type = 'CustomKittiDataset'
-data_root = 'data/dataset_v3/'
+#dataset_type = 'CustomKittiDataset'
+#data_root = 'data/dataset_v3/'
+dataset_type = 'KittiDataset'
+data_root = 'data/kitti/'
 
 # 【核心修复】：明确指定点云和图像的子目录前缀！
 data_prefix = dict(
@@ -178,7 +180,7 @@ model = dict(
         loss_cls=dict(type='mmdet.FocalLoss', use_sigmoid=True, gamma=2.0, alpha=0.25, reduction='mean', loss_weight=1.0),
         loss_heatmap=dict(type='mmdet.GaussianFocalLoss', reduction='mean', loss_weight=1.0),
         loss_bbox=dict(type='mmdet.L1Loss', reduction='mean', loss_weight=0.25)))
-'''
+
 # ================= 3. 数据流水线 =================
 train_pipeline = [
     dict(type='LoadPointsFromFile', coord_type='LIDAR', load_dim=4, use_dim=4),
@@ -258,7 +260,7 @@ test_evaluator = val_evaluator
 # 【核心】请替换为你之前在 nuScenes 上训练好的 BEVFusion (带 TransFusionHead) 权重路径
 # load_from = 'data/bevfusion_fixed.pth'
 # load_from = 'data/bevfusion_merged_init_v4.pth'
-'''
+
 lr = 2.5e-5 # 微调阶段保持柔和的学习率
 optim_wrapper = dict(
     type='OptimWrapper',
