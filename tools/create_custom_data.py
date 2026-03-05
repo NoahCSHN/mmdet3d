@@ -10,9 +10,9 @@ from tools.dataset_converters.update_infos_to_v2 import update_pkl_infos
 from tools.dataset_converters.create_gt_database import create_groundtruth_database
 
 # ================= 核心配置区 =================
-DATA_ROOT = './data/dataset_v3'
+DATA_ROOT = './data/3DBox_Annotation_20260305154810'
 # 你的自定义类别列表（必须与 custom_kitti_dataset.py 保持完全一致）
-CUSTOM_CLASSES = ['MarkBand'] 
+CUSTOM_CLASSES = ['Distance_Marker'] 
 # ==============================================
 
 def main():
@@ -23,7 +23,7 @@ def main():
     update_pkl_infos('kitti', out_dir=DATA_ROOT, pkl_path=f'{DATA_ROOT}/kitti_infos_train.pkl')
     update_pkl_infos('kitti', out_dir=DATA_ROOT, pkl_path=f'{DATA_ROOT}/kitti_infos_val.pkl')
     update_pkl_infos('kitti', out_dir=DATA_ROOT, pkl_path=f'{DATA_ROOT}/kitti_infos_trainval.pkl')
-    update_pkl_infos('kitti', out_dir=DATA_ROOT, pkl_path=f'{DATA_ROOT}/kitti_infos_test.pkl')
+    #update_pkl_infos('kitti', out_dir=DATA_ROOT, pkl_path=f'{DATA_ROOT}/kitti_infos_test.pkl')
     
     print("✨ [3/4] 开启‘洗白’操作：劫持 .pkl 文件，重新映射 ID...")
     for pkl_name in ['kitti_infos_train.pkl', 'kitti_infos_val.pkl', 'kitti_infos_trainval.pkl']:
@@ -39,11 +39,11 @@ def main():
                 # 官方默认把不认识的当做 8。我们在这里将其强行映射回正确的 ID (0~7)
                 # 注意：目前你只有 1 个类，所以全映射为 0。
                 # 未来如果有 8 个类，你需要在这里根据类别的英文名 (instance.get('bbox_label_name')) 进行精确的字典映射
-                if instance.get('bbox_label') == 8:
+                if instance.get('bbox_label') == 8 or instance.get('bbox_label_name') == 'DontCare':
                     instance['bbox_label'] = 0
-                    count += 1
-                if instance.get('bbox_label_3d') == 8:
                     instance['bbox_label_3d'] = 0
+                    instance['bbox_label_name'] = 'Distance_Marker'
+                    count += 1
         
         with open(pkl_path, 'wb') as f:
             pickle.dump(data, f)
@@ -53,7 +53,7 @@ def main():
     from mmdet3d.datasets.kitti_dataset import KittiDataset
     KittiDataset.METAINFO = {'classes': tuple(CUSTOM_CLASSES), 'palette': [(255, 0, 0)] * len(CUSTOM_CLASSES)}
     
-    create_groundtruth_database('KittiDataset', DATA_ROOT, 'kitti', f'{DATA_ROOT}/kitti_infos_train.pkl', relative_path=False, mask_anno_path='instances_train.json', with_mask=False)
+    create_groundtruth_database('KittiDataset', DATA_ROOT, 'kitti', f'kitti_infos_train.pkl', relative_path=False, mask_anno_path='instances_train.json', with_mask=False)
     print("✅ 完美收工！数据集生成无懈可击！")
 
 if __name__ == '__main__':

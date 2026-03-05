@@ -397,7 +397,9 @@ def update_kitti_infos(pkl_path, out_dir):
     # TODO update to full label
     # TODO discuss how to process 'Van', 'DontCare'
     METAINFO = {
-        'classes': ('Pedestrian', 'Cyclist', 'Car', 'Van', 'Truck',
+        #'classes': ('Pedestrian', 'Cyclist', 'Car', 'Van', 'Truck',
+        #            'Person_sitting', 'Tram', 'Misc'),
+        'classes': ('Distance_Marker', 'Cyclist', 'Car', 'Van', 'Truck',
                     'Person_sitting', 'Tram', 'Misc'),
     }
     print(f'Reading from input file: {pkl_path}.')
