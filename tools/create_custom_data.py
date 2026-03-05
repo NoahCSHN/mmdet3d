@@ -1,5 +1,6 @@
 import os
 import pickle
+import functools
 from mmdet3d.utils import register_all_modules
 
 # 1. 唤醒所有官方算子
@@ -8,12 +9,33 @@ register_all_modules(init_default_scope=True)
 from tools.dataset_converters import kitti_converter as kitti
 from tools.dataset_converters.update_infos_to_v2 import update_pkl_infos
 from tools.dataset_converters.create_gt_database import create_groundtruth_database
+from mmdet3d.datasets.kitti_dataset import KittiDataset
 
 # ================= 核心配置区 =================
 DATA_ROOT = './data/3DBox_Annotation_20260305154810'
 # 你的自定义类别列表（必须与 custom_kitti_dataset.py 保持完全一致）
 CUSTOM_CLASSES = ['Distance_Marker'] 
 # ==============================================
+# ================= 源码级黑科技 (强制霸王级 Monkey Patch) =================
+original_init = KittiDataset.__init__
+
+@functools.wraps(original_init)
+def new_init(self, *args, **kwargs):
+    # 【核心重写】：无视一切传参，只要有 data_prefix，强行把 pts 路径改回正常的 velodyne！
+    if 'data_prefix' in kwargs:
+        kwargs['data_prefix']['pts'] = 'training/velodyne'
+    else:
+        kwargs['data_prefix'] = dict(pts='training/velodyne', img='training/image_2')
+    original_init(self, *args, **kwargs)
+
+KittiDataset.__init__ = new_init
+
+# 强行替换底层类别的 METAINFO
+KittiDataset.METAINFO = {
+    'classes': tuple(CUSTOM_CLASSES), 
+    'palette': [(255, 0, 0)] * len(CUSTOM_CLASSES)
+}
+# ==================================================================
 
 def main():
     print("🚀 [1/4] 开始提取基础数据 (V1 格式)...")
@@ -50,7 +72,6 @@ def main():
         print(f"  -> {pkl_name} 修正完毕，共成功洗白 {count} 个目标！")
 
     print("🗄️ [4/4] 内存注入官方 Dataset 并生成 GT 数据库...")
-    from mmdet3d.datasets.kitti_dataset import KittiDataset
     KittiDataset.METAINFO = {'classes': tuple(CUSTOM_CLASSES), 'palette': [(255, 0, 0)] * len(CUSTOM_CLASSES)}
     
     create_groundtruth_database('KittiDataset', DATA_ROOT, 'kitti', f'kitti_infos_train.pkl', relative_path=False, mask_anno_path='instances_train.json', with_mask=False)
