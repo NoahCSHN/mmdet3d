@@ -96,7 +96,11 @@ class KittiMetric(BaseMetric):
         """
         data_annos = data_infos['data_list']
         if not self.format_only:
-            cat2label = data_infos['metainfo']['categories']
+            if 'categories' in data_infos['metainfo']:
+                cat2label = data_infos['metainfo']['categories']
+            else:
+                classes =data_infos['metainfo']['classes'] 
+                cat2label = {name: i for i, name in enumerate(classes)}
             label2cat = dict((v, k) for (k, v) in cat2label.items())
             assert 'instances' in data_annos[0]
             for i, annos in enumerate(data_annos):
