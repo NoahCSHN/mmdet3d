@@ -12,7 +12,8 @@ from mmdet3d.structures.ops import box_np_ops
 from .kitti_data_utils import WaymoInfoGatherer, get_kitti_image_info
 from .nuscenes_converter import post_process_coords
 
-kitti_categories = ('Pedestrian', 'Cyclist', 'Car')
+#kitti_categories = ('Pedestrian', 'Cyclist', 'Car')
+kitti_categories = ('Distance_Marker', 'Structure', 'Car')
 
 
 def convert_to_kitti_info_version2(info):

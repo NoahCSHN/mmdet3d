@@ -13,28 +13,6 @@ class CustomKittiDataset(KittiDataset):
         'palette': [(0, 0, 255), (0, 255, 0)]   
     }
 
-    def parse_data_info(self, info: dict) -> dict:
-        """
-        在底层框架报错之前，强制进行名字纠正。
-        解决 .pkl 中出现的 '0', '1' 或 'Unknown' 导致的 index 错误。
-        """
-        if 'instances' in info:
-            for inst in info['instances']:
-                # 获取当前实例的名字或 ID
-                name = str(inst.get('bbox_label_name', ''))
-                label = inst.get('bbox_label', -1)
-
-                # 【核心拦截逻辑】：强制将数字字符串或错误名字映射回 METAINFO 中的名字
-                if name == '0' or label == 0:
-                    inst['bbox_label_name'] = 'Distance_Marker'
-                    inst['bbox_label'] = 0
-                elif name == '1' or label == 1:
-                    inst['bbox_label_name'] = 'Structure'
-                    inst['bbox_label'] = 1
-                # 如果已经是正确的名字，保持不变；如果是 -1 或 DontCare，后面框架会自动处理
-
-        return super().parse_data_info(info)
-
 @TRANSFORMS.register_module(force=True)
 class PrepareKITTIMultiViewImage:
     """将 KITTI 伪装成多视角，并使用严格的 (N_views, 4, 4) 矩阵维度约束"""

@@ -5,6 +5,9 @@ import numpy as np
 from mmdet3d.utils import register_all_modules
 from mmdet3d.datasets.kitti_dataset import KittiDataset
 
+# 【关键】：导入你的自定义类，确保 Registry 能找到 CustomKittiDataset
+import custom_kitti_dataset 
+
 register_all_modules(init_default_scope=True)
 
 from tools.dataset_converters import kitti_converter as kitti
@@ -14,7 +17,7 @@ from tools.dataset_converters.create_gt_database import create_groundtruth_datab
 DATA_ROOT = './data/3DBox_Annotation_20260305154810'
 CUSTOM_CLASSES = ['Distance_Marker', 'Structure'] 
 
-# ================= 源码级黑科技 (强制霸王级 Monkey Patch) =================
+# ================= 源码级补丁 =================
 original_init = KittiDataset.__init__
 @functools.wraps(original_init)
 def new_init(self, *args, **kwargs):
@@ -30,49 +33,29 @@ KittiDataset.METAINFO = {
     'classes': tuple(CUSTOM_CLASSES), 
     'palette': [(255, 0, 0), (0, 255, 0)] 
 }
-# ==================================================================
+# =================================================
 
 def main():
-    print("🚀 [1/5] 开始提取基础数据 (V1 格式)...")
+    print("🚀 [1/4] 开始提取基础数据 (V1 格式)...")
     kitti.create_kitti_info_file(DATA_ROOT, 'kitti', False)
     
-    print("🥷 [2/5] 内存替身术：在 V1 .pkl 阶段强行劫持 Numpy 数组...")
+    print("🛠️ [2/4] 转换为 V2 格式 (依赖你修改的源码，自动映射为 0 和 1)...")
     pkl_files = ['kitti_infos_train.pkl', 'kitti_infos_val.pkl', 'kitti_infos_trainval.pkl']
-    for pkl_name in pkl_files:
-        pkl_path = os.path.join(DATA_ROOT, pkl_name)
-        if not os.path.exists(pkl_path): continue
-        with open(pkl_path, 'rb') as f:
-            data = pickle.load(f)
-        
-        # V1 格式下，data 是一个列表
-        for info in data:
-            if 'annos' in info and 'name' in info['annos']:
-                # 【制胜关键】：将 numpy 字符串数组转为普通列表操作，避开类型截断
-                names = info['annos']['name'].tolist()
-                for i in range(len(names)):
-                    if names[i] == 'Distance_Marker':
-                        names[i] = 'Pedestrian'
-                    elif names[i] == 'Structure':
-                        names[i] = 'Cyclist'
-                # 重新塞回 Numpy 数组
-                info['annos']['name'] = np.array(names)
-                
-        with open(pkl_path, 'wb') as f:
-            pickle.dump(data, f)
-
-    print("🛠️ [3/5] 转换为 V2 格式 (官方会乖乖把 Pedestrian 转为 0，Cyclist 转为 1)...")
     for pkl_name in pkl_files:
         if os.path.exists(os.path.join(DATA_ROOT, pkl_name)):
             update_pkl_infos('kitti', out_dir=DATA_ROOT, pkl_path=os.path.join(DATA_ROOT, pkl_name))
             
-    print("✨ [4/5] 终极洗白：官方已删除了名字，我们直接收网捞取 0 和 1！")
+    print("✨ [3/4] 终极物理洗白：主动显式注入字符串 name 和 3D 标签！")
     for pkl_name in pkl_files:
         pkl_path = os.path.join(DATA_ROOT, pkl_name)
         if not os.path.exists(pkl_path): continue
         with open(pkl_path, 'rb') as f:
             data = pickle.load(f)
             
-        data['metainfo'] = {'classes': tuple(CUSTOM_CLASSES)}
+        data['metainfo'] = {
+            'classes': tuple(CUSTOM_CLASSES),
+            'palette': [(255, 0, 0), (0, 255, 0)]
+        }
         
         count_marker = 0
         count_struct = 0
@@ -80,25 +63,40 @@ def main():
         for frame in data.get('data_list', []):
             valid_instances = []
             for inst in frame.get('instances', []):
-                # 官方 V2 只保留了 ID。因为我们伪装过，0 就是 Marker，1 就是 Structure！
+                # 此时的 lbl 已经是源码映射好的 0 (Distance_Marker), 1 (Structure), 或 -1 (DontCare)
                 lbl = inst.get('bbox_label', -1)
+                
                 if lbl == 0:  
+                    inst['bbox_label'] = 0
+                    inst['bbox_label_3d'] = 0         # 补齐 3D 专属 ID
+                    #inst['bbox_label_name'] = 'Distance_Marker' # 核心！防止底层强转出 '0'
+                    valid_instances.append(inst)
                     count_marker += 1
-                    valid_instances.append(inst)
                 elif lbl == 1: 
-                    count_struct += 1
+                    inst['bbox_label'] = 1
+                    inst['bbox_label_3d'] = 1         # 补齐 3D 专属 ID
+                    #inst['bbox_label_name'] = 'Structure'       # 核心！防止底层强转出 '1'
                     valid_instances.append(inst)
+                    count_struct += 1
+                # 我们根本不 append lbl == -1 的数据，彻底消灭 DontCare 的干扰
                     
-            # 过滤掉所有杂质和幽灵标签
             frame['instances'] = valid_instances 
                     
         with open(pkl_path, 'wb') as f:
             pickle.dump(data, f)
-        print(f"  -> {pkl_name} 修正完毕，Marker: {count_marker}, Structure: {count_struct}")
+        print(f"  -> {pkl_name} 补全完毕，Marker: {count_marker}, Structure: {count_struct}")
 
-    print("🗄️ [5/5] 内存注入官方 Dataset 并生成多类别 GT 数据库...")
-    create_groundtruth_database('KittiDataset', DATA_ROOT, 'kitti', 'kitti_infos_train.pkl', relative_path=False, mask_anno_path='instances_train.json', with_mask=False)
-    print("✅ 完美收工！数据底层逻辑已全部打通！")
+    print("🗄️ [4/4] 内存注入官方 Dataset 并生成多类别 GT 数据库...")
+    create_groundtruth_database(
+        'CustomKittiDataset', # 使用你注册的名字
+        DATA_ROOT, 
+        'kitti', 
+        'kitti_infos_train.pkl', 
+        relative_path=False, 
+        mask_anno_path='instances_train.json', 
+        with_mask=False
+    )
+    print("✅ 完美收工！GT Database 生成彻底打通！")
 
 if __name__ == '__main__':
     main()
