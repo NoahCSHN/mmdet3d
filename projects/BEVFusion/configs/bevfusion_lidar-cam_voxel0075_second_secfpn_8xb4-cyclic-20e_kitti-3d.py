@@ -1,7 +1,7 @@
 _base_ = ['../../../configs/_base_/default_runtime.py']
 
 custom_imports = dict(
-    imports=['projects.BEVFusion.bevfusion', 'custom_kitti_dataset'], 
+    imports=['projects.BEVFusion.bevfusion', 'custom_kitti_dataset', 'custom_kitti_metric'], 
     allow_failed_imports=False)
 
 # ================= 1. 基础物理范围与类别 =================
@@ -178,7 +178,7 @@ model = dict(
             voxel_size=[0.075, 0.075],
             code_size=8), # 尺寸由 10 变为 8
         loss_cls=dict(type='mmdet.FocalLoss', use_sigmoid=True, gamma=2.0, alpha=0.25, reduction='mean', loss_weight=1.0),
-        loss_heatmap=dict(type='mmdet.GaussianFocalLoss', reduction='mean', loss_weight=1.0),
+        loss_heatmap=dict(type='mmdet.GaussianFocalLoss', reduction='mean', loss_weight=2.0),
         loss_bbox=dict(type='mmdet.L1Loss', reduction='mean', loss_weight=0.25)))
 
 # ================= 3. 数据流水线 =================
@@ -253,9 +253,8 @@ val_dataloader = dict(
         test_mode=True, box_type_3d='LiDAR'))
 test_dataloader = val_dataloader
 
-val_evaluator = dict(type='KittiMetric', ann_file=data_root + 'kitti_infos_val.pkl', metric='bbox')
+val_evaluator = dict(type='CustomKittiMetric', ann_file=data_root + 'kitti_infos_val.pkl', metric='bbox')
 test_evaluator = val_evaluator
-
 # ================= 5. 加载预训练权重进行微调 =================
 # 【核心】请替换为你之前在 nuScenes 上训练好的 BEVFusion (带 TransFusionHead) 权重路径
 # load_from = 'data/bevfusion_fixed.pth'
@@ -272,7 +271,7 @@ param_scheduler = [
     dict(type='CosineAnnealingLR', begin=0, T_max=15, end=15, by_epoch=True, eta_min_ratio=1e-4, convert_to_iter_based=True),
 ]
 
-train_cfg = dict(by_epoch=True, max_epochs=15, val_interval=1)
+train_cfg = dict(by_epoch=True, max_epochs=60, val_interval=5)
 val_cfg = dict()
 test_cfg = dict()
 
@@ -290,5 +289,4 @@ visualizer = dict(
     name='visualizer')
 
 load_from = 'data/work_dirs/bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_kitti-3d_nopretrained/epoch_15.pth'
-
 
