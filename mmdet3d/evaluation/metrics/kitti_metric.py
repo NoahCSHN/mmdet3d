@@ -53,6 +53,7 @@ class KittiMetric(BaseMetric):
                  ann_file: str,
                  metric: Union[str, List[str]] = 'bbox',
                  pcd_limit_range: List[float] = [0, -40, -3, 70.4, 40, 0.0],
+                 filter_by_camera_fov: bool = True,
                  prefix: Optional[str] = None,
                  pklfile_prefix: Optional[str] = None,
                  default_cam_key: str = 'CAM2',
@@ -64,6 +65,7 @@ class KittiMetric(BaseMetric):
         super(KittiMetric, self).__init__(
             collect_device=collect_device, prefix=prefix)
         self.pcd_limit_range = pcd_limit_range
+        self.filter_by_camera_fov = filter_by_camera_fov
         self.ann_file = ann_file
         self.pklfile_prefix = pklfile_prefix
         self.format_only = format_only
@@ -625,6 +627,8 @@ class KittiMetric(BaseMetric):
         valid_cam_inds = ((box_2d_preds[:, 0] < image_shape[1]) &
                           (box_2d_preds[:, 1] < image_shape[0]) &
                           (box_2d_preds[:, 2] > 0) & (box_2d_preds[:, 3] > 0))
+        if not self.filter_by_camera_fov:
+            valid_cam_inds = torch.ones_like(valid_cam_inds, dtype=torch.bool)
         # check box_preds_lidar
         if isinstance(box_preds, LiDARInstance3DBoxes):
             limit_range = box_preds.tensor.new_tensor(self.pcd_limit_range)

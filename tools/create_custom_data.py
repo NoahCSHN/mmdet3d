@@ -14,7 +14,7 @@ from tools.dataset_converters import kitti_converter as kitti
 from tools.dataset_converters.update_infos_to_v2 import update_pkl_infos
 from tools.dataset_converters.create_gt_database import create_groundtruth_database
 
-DATA_ROOT = './data/3DBox_Annotation_20260305154810'
+DATA_ROOT = './data/3DBox_Annotation_20260309105213'
 CUSTOM_CLASSES = ['Distance_Marker', 'Structure'] 
 
 # ================= 源码级补丁 =================

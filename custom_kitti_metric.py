@@ -1,6 +1,7 @@
 from mmdet3d.registry import METRICS
 from mmdet3d.evaluation.metrics import KittiMetric
 from mmdet3d.evaluation.functional import kitti_eval
+from mmengine.logging import print_log
 
 @METRICS.register_module(force=True)
 class CustomKittiMetric(KittiMetric):
@@ -20,20 +21,29 @@ class CustomKittiMetric(KittiMetric):
         # 如果 AP 还是 0，我们需要手动触发一次包含自定义类别的评估过程
         return ret_dict
 
-    # 核心重写：覆盖内部的评估逻辑
-    def _evaluate(self, sample_results, groundtruths, pkl_infos=None):
-        # 这里的 classes 会被传递给 C++ 后端或 Python 评估函数
-        classes = self.dataset_meta['classes']
-        
-        # 强制指定评估类别为你的自定义类别
-        eval_types = ['bbox', 'bev', '3d']
-        
-        # 调用 mmdet3d 的 functional 接口进行评估
-        # 这里的 current_classes 极其关键，它打破了 'Car' 的限制
-        ap_dict = kitti_eval(
-            groundtruths,
-            sample_results,
-            current_classes=classes, 
-            eval_types=eval_types)
-        
+    def kitti_evaluate(self,
+                       results_dict,
+                       gt_annos,
+                       metric=None,
+                       classes=None,
+                       logger=None):
+        """Evaluate custom classes with 360-LiDAR-friendly metrics.
+
+        For 3D predictions, only compute BEV/3D AP to avoid front-camera 2D
+        constraints dominating 360-degree LiDAR evaluation.
+        """
+        ap_dict = {}
+        for name in results_dict:
+            if name == 'pred_instances_3d':
+                eval_types = ['bev', '3d']
+            else:
+                eval_types = ['bbox']
+
+            ap_result_str, ap_dict_ = kitti_eval(
+                gt_annos, results_dict[name], classes, eval_types=eval_types)
+            for ap_type, ap in ap_dict_.items():
+                ap_dict[f'{name}/{ap_type}'] = float(f'{ap:.4f}')
+
+            print_log(f'Results of {name}:\n' + ap_result_str, logger=logger)
+
         return ap_dict

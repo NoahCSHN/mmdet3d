@@ -8,7 +8,7 @@ custom_imports = dict(
 class_names = ['Distance_Marker', 'Structure']
 metainfo = dict(classes=class_names)
 dataset_type = 'CustomKittiDataset'
-data_root = 'data/3DBox_Annotation_20260305154810/'
+data_root = 'data/3DBox_Annotation_20260309105213/'
 #dataset_type = 'KittiDataset'
 #data_root = 'data/kitti/'
 
@@ -253,7 +253,12 @@ val_dataloader = dict(
         test_mode=True, box_type_3d='LiDAR'))
 test_dataloader = val_dataloader
 
-val_evaluator = dict(type='CustomKittiMetric', ann_file=data_root + 'kitti_infos_val.pkl', metric='bbox')
+val_evaluator = dict(
+    type='CustomKittiMetric',
+    ann_file=data_root + 'kitti_infos_val.pkl',
+    metric='bbox',
+    pcd_limit_range=point_cloud_range,
+    filter_by_camera_fov=False)
 test_evaluator = val_evaluator
 # ================= 5. 加载预训练权重进行微调 =================
 # 【核心】请替换为你之前在 nuScenes 上训练好的 BEVFusion (带 TransFusionHead) 权重路径

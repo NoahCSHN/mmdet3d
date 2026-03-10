@@ -28,12 +28,23 @@ def get_thresholds(scores: np.ndarray, num_gt, num_sample_pts=41):
 
 
 def clean_data(gt_anno, dt_anno, current_class, difficulty):
-    CLASS_NAMES = ['car', 'pedestrian', 'cyclist']
+    CLASS_NAMES = [
+        'distance_marker', 'structure', 'cyclist', 'van', 'person_sitting'
+    ]
     MIN_HEIGHT = [40, 25, 25]
     MAX_OCCLUSION = [0, 1, 2]
     MAX_TRUNCATION = [0.15, 0.3, 0.5]
     dc_bboxes, ignored_gt, ignored_dt = [], [], []
-    current_cls_name = CLASS_NAMES[current_class].lower()
+    if current_class >= len(CLASS_NAMES):
+        current_cls_name = CLASS_NAMES[0]
+    else:
+        current_cls_name = CLASS_NAMES[current_class]
+
+    # 360 LiDAR custom classes are not front-camera-only categories.
+    # Disable KITTI image difficulty filters (height/occlusion/truncation)
+    # for these classes to avoid suppressing valid rear/side targets.
+    use_image_difficulty = current_cls_name not in ('distance_marker',
+                                                    'structure')
     num_gt = len(gt_anno['name'])
     num_dt = len(dt_anno['name'])
     num_valid_gt = 0
@@ -52,10 +63,11 @@ def clean_data(gt_anno, dt_anno, current_class, difficulty):
         else:
             valid_class = -1
         ignore = False
-        if ((gt_anno['occluded'][i] > MAX_OCCLUSION[difficulty])
+        if use_image_difficulty:
+            if ((gt_anno['occluded'][i] > MAX_OCCLUSION[difficulty])
                 or (gt_anno['truncated'][i] > MAX_TRUNCATION[difficulty])
                 or (height <= MIN_HEIGHT[difficulty])):
-            ignore = True
+                ignore = True
         if valid_class == 1 and not ignore:
             ignored_gt.append(0)
             num_valid_gt += 1
@@ -72,7 +84,7 @@ def clean_data(gt_anno, dt_anno, current_class, difficulty):
         else:
             valid_class = -1
         height = abs(dt_anno['bbox'][i, 3] - dt_anno['bbox'][i, 1])
-        if height < MIN_HEIGHT[difficulty]:
+        if use_image_difficulty and height < MIN_HEIGHT[difficulty]:
             ignored_dt.append(1)
         elif valid_class == 1:
             ignored_dt.append(0)
@@ -675,6 +687,7 @@ def kitti_eval(gt_annos,
     Returns:
         tuple: String and dict of evaluation results.
     """
+    eval_types = list(eval_types)
     assert len(eval_types) > 0, 'must contain at least one evaluation type'
     if 'aos' in eval_types:
         assert 'bbox' in eval_types, 'must evaluate bbox when evaluating aos'
@@ -686,8 +699,8 @@ def kitti_eval(gt_annos,
                             [0.5, 0.25, 0.25, 0.5, 0.25]])
     min_overlaps = np.stack([overlap_0_7, overlap_0_5], axis=0)  # [2, 3, 5]
     class_to_name = {
-        0: 'MarkBand',
-        1: 'Pedestrian',
+        0: 'Distance_Marker',
+        1: 'Structure',
         2: 'Cyclist',
         3: 'Van',
         4: 'Person_sitting',
@@ -709,15 +722,16 @@ def kitti_eval(gt_annos,
     pred_alpha = False
     valid_alpha_gt = False
     for anno in dt_annos:
-        mask = (anno['alpha'] != -10)
-        if anno['alpha'][mask].shape[0] != 0:
+        alpha = np.asarray(anno.get('alpha', -10))
+        if np.any(alpha != -10):
             pred_alpha = True
             break
     for anno in gt_annos:
-        if anno['alpha'][0] != -10:
+        alpha = np.asarray(anno.get('alpha', -10))
+        if np.any(alpha != -10):
             valid_alpha_gt = True
             break
-    compute_aos = (pred_alpha and valid_alpha_gt)
+    compute_aos = (pred_alpha and valid_alpha_gt and 'bbox' in eval_types)
     if compute_aos:
         eval_types.append('aos')
 
@@ -890,8 +904,8 @@ def kitti_eval_coco_style(gt_annos, dt_annos, current_classes):
         string: Evaluation results.
     """
     class_to_name = {
-        0: 'MarkBand',
-        1: 'Pedestrian',
+        0: 'Distance_Marker',
+        1: 'Structure',
         2: 'Cyclist',
         3: 'Van',
         4: 'Person_sitting',
