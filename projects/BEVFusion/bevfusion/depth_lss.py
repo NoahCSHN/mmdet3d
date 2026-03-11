@@ -347,6 +347,7 @@ class DepthLSSTransform(BaseDepthTransform):
         dbound: Tuple[float, float, float],
         downsample: int = 1,
         loss_depth_weight: float = 1.0,
+        use_sparse_depth: bool = True,
     ) -> None:
         """Compared with `LSSTransform`, `DepthLSSTransform` adds sparse depth
         information from lidar points into the inputs of the `depthnet`."""
@@ -361,20 +362,27 @@ class DepthLSSTransform(BaseDepthTransform):
             dbound=dbound,
         )
         self.loss_depth_weight = loss_depth_weight
+        self.use_sparse_depth = use_sparse_depth
         self._cached_depth_loss = None
-        self.dtransform = nn.Sequential(
-            nn.Conv2d(1, 8, 1),
-            nn.BatchNorm2d(8),
-            nn.ReLU(True),
-            nn.Conv2d(8, 32, 5, stride=4, padding=2),
-            nn.BatchNorm2d(32),
-            nn.ReLU(True),
-            nn.Conv2d(32, 64, 5, stride=2, padding=2),
-            nn.BatchNorm2d(64),
-            nn.ReLU(True),
-        )
+        if self.use_sparse_depth:
+            self.dtransform = nn.Sequential(
+                nn.Conv2d(1, 8, 1),
+                nn.BatchNorm2d(8),
+                nn.ReLU(True),
+                nn.Conv2d(8, 32, 5, stride=4, padding=2),
+                nn.BatchNorm2d(32),
+                nn.ReLU(True),
+                nn.Conv2d(32, 64, 5, stride=2, padding=2),
+                nn.BatchNorm2d(64),
+                nn.ReLU(True),
+            )
+            depthnet_in_channels = in_channels + 64
+        else:
+            self.dtransform = None
+            depthnet_in_channels = in_channels
+
         self.depthnet = nn.Sequential(
-            nn.Conv2d(in_channels + 64, in_channels, 3, padding=1),
+            nn.Conv2d(depthnet_in_channels, in_channels, 3, padding=1),
             nn.BatchNorm2d(in_channels),
             nn.ReLU(True),
             nn.Conv2d(in_channels, in_channels, 3, padding=1),
@@ -444,18 +452,20 @@ class DepthLSSTransform(BaseDepthTransform):
         loss = (per_pixel_loss * valid).sum() / denom
         return loss
 
-    def get_cam_feats(self, x, d):
+    def get_cam_feats(self, x, d=None):
         B, N, C, fH, fW = x.shape
 
         depth_gt_full = d
-        d = d.view(B * N, *d.shape[2:])
         x = x.view(B * N, C, fH, fW)
 
-        d = self.dtransform(d)
-        x = torch.cat([d, x], dim=1)
+        if self.use_sparse_depth:
+            assert d is not None
+            d = d.view(B * N, *d.shape[2:])
+            d = self.dtransform(d)
+            x = torch.cat([d, x], dim=1)
         x = self.depthnet(x)
 
-        if self.training and self.loss_depth_weight > 0:
+        if self.training and self.loss_depth_weight > 0 and depth_gt_full is not None:
             depth_gt = self._downsample_sparse_depth(depth_gt_full)
             self._cached_depth_loss = self._compute_depth_loss(
                 x[:, :self.D], depth_gt) * self.loss_depth_weight
@@ -471,7 +481,35 @@ class DepthLSSTransform(BaseDepthTransform):
 
     def forward(self, *args, **kwargs):
         self._cached_depth_loss = None
-        x = super().forward(*args, **kwargs)
+        if self.use_sparse_depth or self.training:
+            x = super().forward(*args, **kwargs)
+        else:
+            img = args[0]
+            camera_intrinsics = args[3]
+            camera2lidar = args[4]
+            img_aug_matrix = args[5]
+            lidar_aug_matrix = args[6]
+
+            intrins = camera_intrinsics[..., :3, :3]
+            post_rots = img_aug_matrix[..., :3, :3]
+            post_trans = img_aug_matrix[..., :3, 3]
+            camera2lidar_rots = camera2lidar[..., :3, :3]
+            camera2lidar_trans = camera2lidar[..., :3, 3]
+            extra_rots = lidar_aug_matrix[..., :3, :3]
+            extra_trans = lidar_aug_matrix[..., :3, 3]
+
+            geom = self.get_geometry(
+                camera2lidar_rots,
+                camera2lidar_trans,
+                intrins,
+                post_rots,
+                post_trans,
+                extra_rots=extra_rots,
+                extra_trans=extra_trans,
+            )
+
+            x = self.get_cam_feats(img, None)
+            x = self.bev_pool(geom, x)
         x = self.downsample(x)
         return x
 
