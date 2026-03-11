@@ -77,7 +77,7 @@ model = dict(
         depth=50,
         num_stages=4,
         out_indices=[1, 2, 3],
-        frozen_stages=-1,
+        frozen_stages=4,
         norm_cfg=dict(type='BN', requires_grad=True),
         norm_eval=False,
         style='pytorch',
@@ -106,7 +106,7 @@ model = dict(
         zbound=[-10.0, 10.0, 20.0],
         dbound=[1.0, 60.0, 0.5],
         downsample=2,
-        loss_depth_weight=1.0),
+        loss_depth_weight=0.2),
         
     fusion_layer=None,
 
@@ -252,7 +252,7 @@ test_evaluator = val_evaluator
 # load_from = 'data/bevfusion_fixed.pth'
 # load_from = 'data/bevfusion_merged_init_v4.pth'
 
-lr = 2.5e-5 # 微调阶段保持柔和的学习率
+lr = 2.5e-4 # 微调阶段保持柔和的学习率
 optim_wrapper = dict(
     type='OptimWrapper',
     optimizer=dict(type='AdamW', lr=lr, weight_decay=0.01),
@@ -280,5 +280,5 @@ visualizer = dict(
     vis_backends=vis_backends, 
     name='visualizer')
 
-load_from = 'data/work_dirs/bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_kitti-3d_nopretrained/epoch_15.pth'
+#load_from = 'data/work_dirs/bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_kitti-3d_nopretrained/epoch_15.pth'
 
