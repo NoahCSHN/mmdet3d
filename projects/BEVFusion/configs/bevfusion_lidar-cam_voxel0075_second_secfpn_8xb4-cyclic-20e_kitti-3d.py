@@ -77,7 +77,7 @@ model = dict(
         depth=50,
         num_stages=4,
         out_indices=[1, 2, 3],
-        frozen_stages=4,
+        frozen_stages=1,
         norm_cfg=dict(type='BN', requires_grad=True),
         norm_eval=False,
         style='pytorch',
@@ -215,8 +215,8 @@ test_pipeline = [
 
 # ================= 4. Dataloader 与 训练策略 =================
 train_dataloader = dict(
-    batch_size=2, # 多模态显存占用极大，建议调低
-    num_workers=2,
+    batch_size=8, # 多模态显存占用极大，建议调低
+    num_workers=4,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     dataset=dict(
@@ -231,7 +231,7 @@ train_dataloader = dict(
         box_type_3d='LiDAR'))
 
 val_dataloader = dict(
-    batch_size=1, num_workers=2, persistent_workers=True, drop_last=False,
+    batch_size=2, num_workers=2, persistent_workers=True, drop_last=False,
     sampler=dict(type='DefaultSampler', shuffle=False),
     dataset=dict(
         type=dataset_type, data_root=data_root, ann_file='kitti_infos_val.pkl',
@@ -252,7 +252,7 @@ test_evaluator = val_evaluator
 # load_from = 'data/bevfusion_fixed.pth'
 # load_from = 'data/bevfusion_merged_init_v4.pth'
 
-lr = 2.5e-4 # 微调阶段保持柔和的学习率
+lr = 2e-4 # 微调阶段保持柔和的学习率
 optim_wrapper = dict(
     type='OptimWrapper',
     optimizer=dict(type='AdamW', lr=lr, weight_decay=0.01),
