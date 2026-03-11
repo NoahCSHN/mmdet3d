@@ -3,6 +3,7 @@ from typing import Tuple
 
 import torch
 from torch import nn
+from torch.nn import functional as F
 
 from mmdet3d.registry import MODELS
 from .ops import bev_pool
@@ -345,6 +346,7 @@ class DepthLSSTransform(BaseDepthTransform):
         zbound: Tuple[float, float, float],
         dbound: Tuple[float, float, float],
         downsample: int = 1,
+        loss_depth_weight: float = 1.0,
     ) -> None:
         """Compared with `LSSTransform`, `DepthLSSTransform` adds sparse depth
         information from lidar points into the inputs of the `depthnet`."""
@@ -358,6 +360,8 @@ class DepthLSSTransform(BaseDepthTransform):
             zbound=zbound,
             dbound=dbound,
         )
+        self.loss_depth_weight = loss_depth_weight
+        self._cached_depth_loss = None
         self.dtransform = nn.Sequential(
             nn.Conv2d(1, 8, 1),
             nn.BatchNorm2d(8),
@@ -403,15 +407,60 @@ class DepthLSSTransform(BaseDepthTransform):
         else:
             self.downsample = nn.Identity()
 
+    def _downsample_sparse_depth(self, depth: torch.Tensor) -> torch.Tensor:
+        """Downsample sparse depth by taking nearest valid depth in each block."""
+        B, N, _, H, W = depth.shape
+        fH, fW = self.feature_size
+        ds_h = H // fH
+        ds_w = W // fW
+
+        depth = depth.view(B * N, 1, H, W)
+        depth = depth.view(B * N, 1, fH, ds_h, fW, ds_w)
+        depth = depth.permute(0, 1, 2, 4, 3, 5).contiguous().view(
+            B * N, 1, fH, fW, ds_h * ds_w)
+
+        valid = depth > 0
+        inf = torch.full_like(depth, float('inf'))
+        depth = torch.where(valid, depth, inf)
+        depth = depth.min(dim=-1).values
+        has_valid = valid.any(dim=-1)
+        depth = torch.where(has_valid, depth, torch.zeros_like(depth))
+        return depth
+
+    def _compute_depth_loss(self, depth_logits: torch.Tensor,
+                            depth_gt: torch.Tensor) -> torch.Tensor:
+        d_min, d_max, d_step = self.dbound
+        depth_gt = depth_gt.squeeze(1)
+        valid = (depth_gt >= d_min) & (depth_gt < d_max)
+
+        depth_labels = ((depth_gt - d_min) / d_step).floor().long()
+        depth_labels = depth_labels.clamp(min=0, max=self.D - 1)
+
+        per_pixel_loss = F.cross_entropy(
+            depth_logits, depth_labels, reduction='none')
+
+        valid = valid.float()
+        denom = valid.sum().clamp_min(1.0)
+        loss = (per_pixel_loss * valid).sum() / denom
+        return loss
+
     def get_cam_feats(self, x, d):
         B, N, C, fH, fW = x.shape
 
+        depth_gt_full = d
         d = d.view(B * N, *d.shape[2:])
         x = x.view(B * N, C, fH, fW)
 
         d = self.dtransform(d)
         x = torch.cat([d, x], dim=1)
         x = self.depthnet(x)
+
+        if self.training and self.loss_depth_weight > 0:
+            depth_gt = self._downsample_sparse_depth(depth_gt_full)
+            self._cached_depth_loss = self._compute_depth_loss(
+                x[:, :self.D], depth_gt) * self.loss_depth_weight
+        else:
+            self._cached_depth_loss = None
 
         depth = x[:, :self.D].softmax(dim=1)
         x = depth.unsqueeze(1) * x[:, self.D:(self.D + self.C)].unsqueeze(2)
@@ -421,6 +470,10 @@ class DepthLSSTransform(BaseDepthTransform):
         return x
 
     def forward(self, *args, **kwargs):
+        self._cached_depth_loss = None
         x = super().forward(*args, **kwargs)
         x = self.downsample(x)
         return x
+
+    def get_depth_loss(self):
+        return self._cached_depth_loss

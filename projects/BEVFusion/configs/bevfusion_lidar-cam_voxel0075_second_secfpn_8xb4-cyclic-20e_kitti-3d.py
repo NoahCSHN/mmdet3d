@@ -31,6 +31,7 @@ voxel_size = [0.075, 0.075, 0.2]
 # 精确重算 Grid Size: (54 - (-54)) / 0.075 = 1440
 grid_size = [1440, 1440, 40]
 
+# 仅使用 camera 分支做检测；点云仍在 pipeline 中读取，用于 DepthNet 深度监督
 input_modality = dict(use_lidar=True, use_camera=True)
 backend_args = None
 
@@ -50,20 +51,12 @@ model = dict(
             max_voxels=[120000, 160000],
             voxelize_reduce=True)),
             
-    # ------ LiDAR 分支 ------
-    pts_voxel_encoder=dict(type='HardSimpleVFE', num_features=4), # KITTI 点云通常只有 4 维 (x,y,z,intensity)
-    pts_middle_encoder=dict(
-        type='BEVFusionSparseEncoder',
-        in_channels=4,
-        sparse_shape=grid_size, # [Y, X, Z] 对应 grid_size
-        order=('conv', 'norm', 'act'),
-        norm_cfg=dict(type='BN1d', eps=0.001, momentum=0.01),
-        encoder_channels=((16, 16, 32), (32, 32, 64), (64, 64, 128), (128, 128)),
-        encoder_paddings=((0, 0, 1), (0, 0, 1), (0, 0, (1, 1, 0)), (0, 0)),
-        block_type='basicblock'),
+    # ------ LiDAR 检测分支关闭（仅保留点云用于深度监督） ------
+    pts_voxel_encoder=None,
+    pts_middle_encoder=None,
     pts_backbone=dict(
         type='SECOND',
-        in_channels=256,
+        in_channels=80,
         out_channels=[128, 256],
         layer_nums=[5, 5],
         layer_strides=[1, 2],
@@ -118,10 +111,10 @@ model = dict(
         ybound=[-54.0, 54.0, 0.3], 
         zbound=[-10.0, 10.0, 20.0],
         dbound=[1.0, 60.0, 0.5],
-        downsample=2),
+        downsample=2,
+        loss_depth_weight=1.0),
         
-    fusion_layer=dict(
-        type='ConvFuser', in_channels=[80, 128], out_channels=256),
+    fusion_layer=None,
 
     # ------ TransFusion 检测头 ------
     bbox_head=dict(

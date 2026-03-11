@@ -35,14 +35,18 @@ class BEVFusion(Base3DDetector):
         seg_head: Optional[dict] = None,
         **kwargs,
     ) -> None:
-        voxelize_cfg = data_preprocessor.pop('voxelize_cfg')
+        voxelize_cfg = data_preprocessor.pop('voxelize_cfg', None)
         super().__init__(
             data_preprocessor=data_preprocessor, init_cfg=init_cfg)
 
-        self.voxelize_reduce = voxelize_cfg.pop('voxelize_reduce')
-        self.pts_voxel_layer = Voxelization(**voxelize_cfg)
+        self.voxelize_reduce = False
+        self.pts_voxel_layer = None
+        if voxelize_cfg is not None:
+            self.voxelize_reduce = voxelize_cfg.pop('voxelize_reduce')
+            self.pts_voxel_layer = Voxelization(**voxelize_cfg)
 
-        self.pts_voxel_encoder = MODELS.build(pts_voxel_encoder)
+        self.pts_voxel_encoder = MODELS.build(
+            pts_voxel_encoder) if pts_voxel_encoder is not None else None
 
         self.img_backbone = MODELS.build(
             img_backbone) if img_backbone is not None else None
@@ -50,7 +54,8 @@ class BEVFusion(Base3DDetector):
             img_neck) if img_neck is not None else None
         self.view_transform = MODELS.build(
             view_transform) if view_transform is not None else None
-        self.pts_middle_encoder = MODELS.build(pts_middle_encoder)
+        self.pts_middle_encoder = MODELS.build(
+            pts_middle_encoder) if pts_middle_encoder is not None else None
 
         self.fusion_layer = MODELS.build(
             fusion_layer) if fusion_layer is not None else None
@@ -165,6 +170,7 @@ class BEVFusion(Base3DDetector):
 
     def extract_pts_feat(self, batch_inputs_dict) -> torch.Tensor:
         points = batch_inputs_dict['points']
+        assert self.pts_voxel_layer is not None and self.pts_middle_encoder is not None
         with torch.autocast('cuda', enabled=False):
             points = [point.float() for point in points]
             feats, coords, sizes = self.voxelize(points)
@@ -205,6 +211,7 @@ class BEVFusion(Base3DDetector):
 
     @torch.no_grad()
     def voxelize(self, points):
+        assert self.pts_voxel_layer is not None
         feats, coords, sizes = [], [], []
         for k, res in enumerate(points):
             ret = self.pts_voxel_layer(res)
@@ -301,8 +308,9 @@ class BEVFusion(Base3DDetector):
                                                 lidar_aug_matrix,
                                                 batch_input_metas)
             features.append(img_feature)
-        pts_feature = self.extract_pts_feat(batch_inputs_dict)
-        features.append(pts_feature)
+        if points is not None and self.pts_middle_encoder is not None:
+            pts_feature = self.extract_pts_feat(batch_inputs_dict)
+            features.append(pts_feature)
 
         # DEBUG: 在 x = self.fusion_layer(features) 之前
         #for i, feat in enumerate(features):
@@ -332,5 +340,11 @@ class BEVFusion(Base3DDetector):
             bbox_loss = self.bbox_head.loss(feats, batch_data_samples)
 
         losses.update(bbox_loss)
+
+        if (self.view_transform is not None
+                and hasattr(self.view_transform, 'get_depth_loss')):
+            loss_depth = self.view_transform.get_depth_loss()
+            if loss_depth is not None:
+                losses['loss_depth'] = loss_depth
 
         return losses
