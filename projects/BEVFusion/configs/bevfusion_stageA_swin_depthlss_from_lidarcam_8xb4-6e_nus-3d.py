@@ -6,7 +6,7 @@ _base_ = ['./bevfusion_cam_voxel0075_second_secfpn_r50_depth_8xb4-60e_nus-3d.py'
 
 model = dict(
     img_backbone=dict(
-        __delete__=True,
+        _delete_=True,
         type='mmdet.SwinTransformer',
         embed_dims=96,
         depths=[2, 2, 6, 2],
@@ -22,11 +22,12 @@ model = dict(
         out_indices=[1, 2, 3],
         with_cp=False,
         convert_weights=True,
-        init_cfg=dict(
-            type='Pretrained',
-            checkpoint='https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_tiny_patch4_window7_224.pth')),
+        # init_cfg=dict(
+        #     type='Pretrained',
+        #     checkpoint='https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_tiny_patch4_window7_224.pth')
+    ),
     img_neck=dict(
-        __delete__=True,
+        _delete_=True,
         type='GeneralizedLSSFPN',
         in_channels=[192, 384, 768],
         out_channels=256,
@@ -36,7 +37,7 @@ model = dict(
         act_cfg=dict(type='ReLU', inplace=True),
         upsample_cfg=dict(mode='bilinear', align_corners=False)),
     view_transform=dict(
-        __delete__=True,
+        _delete_=True,
         type='DepthLSSTransform',
         in_channels=256,
         out_channels=80,
@@ -58,7 +59,7 @@ test_input_modality = dict(use_lidar=False, use_camera=True)
 # Start from official lidar-cam checkpoint and rely on non-strict matching.
 load_from = 'data/bevfusion_lidar-cam_voxel0075_second_secfpn_8xb4-cyclic-20e_nus-3d-5239b1af.pth'
 
-train_dataloader = dict(batch_size=2, num_workers=4, persistent_workers=True)
+train_dataloader = dict(batch_size=3, num_workers=4, persistent_workers=True)
 val_dataloader = dict(batch_size=1, num_workers=2, persistent_workers=True)
 test_dataloader = val_dataloader
 
