@@ -7,10 +7,10 @@ _base_ = ['./bevfusion_cam_voxel0075_second_secfpn_r50_depth_8xb4-60e_nus-3d.py'
 # Replace this with your actual Stage A checkpoint path when resuming.
 # Example:
 # load_from = 'data/work_dirs/bevfusion_stageA_swin_depthlss_from_lidarcam_8xb4-6e_nus-3d/epoch_6.pth'
-load_from = 'data/work_dirs/bevfusion_stageA_swin_depthlss_from_lidarcam_8xb4-6e_nus-3d/epoch_6.pth'
+load_from = 'data/work_dirs/bevfusion_stageA_swin_depthlss_from_lidarcam_8xb4-6e_nus-3d/epoch_4.pth'
 
 # Single-GPU friendly defaults.
-train_dataloader = dict(batch_size=2, num_workers=4, persistent_workers=True)
+train_dataloader = dict(batch_size=3, num_workers=4, persistent_workers=True)
 val_dataloader = dict(batch_size=1, num_workers=2, persistent_workers=True)
 test_dataloader = val_dataloader
 
@@ -45,3 +45,4 @@ train_cfg = dict(by_epoch=True, max_epochs=24, val_interval=1)
 default_hooks = dict(
     logger=dict(type='LoggerHook', interval=50),
     checkpoint=dict(type='CheckpointHook', interval=1))
+
